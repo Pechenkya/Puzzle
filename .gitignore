@@ -35,4 +35,5 @@ Debug/
 *.app
 
 *.vcxproj.*
-Puzzle/Puzzle.vcxproj
+*.vcxproj
+
