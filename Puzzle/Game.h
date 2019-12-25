@@ -1,31 +1,24 @@
 #pragma once
-
+#include <vector>
+#include <deque>
+#include <condition_variable>
+#include <SFML/Window/Event.hpp>
+//#include <mutex>
 
 namespace std
 {
-	template< class T >
-	struct allocator;
-
-	template<
-		class T,
-		class Allocator = allocator<T>
-	> class vector;
-
-	template<
-		class T,
-		class Allocator = std::allocator<T>
-	> class deque;
-
 	class mutex;
 }
 
 namespace sf
 {
 	class RectangleShape;
-	class Vector2f;
-	class Window;
+	template<typename T>
+	class Vector2;
+	typedef Vector2<float> Vector2f;
+	class RenderWindow;
 	class Text;
-	class Event;
+	class Font;
 }
 
 class Game
@@ -38,10 +31,10 @@ class Game
 	public:
 		int value;
 		const int i, j;
-		Node(int _i, int _j) : i{ _i }, j{ _j } {};
+		Node(int _i, int _j, float node_size, sf::Vector2f pos);
 
 		bool contains(const sf::Vector2f& pos);
-		void draw(const sf::Window& window);
+		void draw(sf::RenderWindow& window);
 	};
 
 	struct EventQueue
@@ -50,21 +43,27 @@ class Game
 		void push(const sf::Event& event);
 
 	private: 
-		std::deque <sf::Event>* events;
+		std::deque <sf::Event> events;
+		std::condition_variable cv;
+		std::mutex mudax;
+		std::unique_lock<std::mutex> lock{ mudax };
 	};
 
 public:
-	static void initialize_game(unsigned int sl);
+	static void initialize_game(unsigned int sl = 4);
 	static bool start_game();
 
 private:
 	//Base game propeties
+	static const float window_width;
+	static const float window_height;
 	static unsigned int side_length;
-	static Node** table;
+	static Node*** table; // I tut ya zvezdanulsya
 	//
 
 	//Drawing thread values
-	static sf::Window* window; // Could be redundant
+	static sf::Font FONT;
+	static sf::RenderWindow* window; // Could be redundant
 	static Node* selected_node;
 	static EventQueue mouse_move_events;
 	static void draw_process();
