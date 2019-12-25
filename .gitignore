@@ -3,6 +3,7 @@
 SFML-2.5.1/
 .vs/
 x64/
+Debug/
 
 # Compiled Object files
 *.slo
