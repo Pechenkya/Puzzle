@@ -2,7 +2,7 @@
 #include <iostream>
 
 std::mutex m;
-std::unique_lock<std::mutex> l(m, std::defer_lock);
+std::mutex l;
 
 void thread1()
 {
@@ -17,7 +17,6 @@ void thread1()
 
 void thread2()
 {
-	//l.unlock();
 
 	l.lock();
 	for (int i = 0; i < 100; ++i)
@@ -31,11 +30,11 @@ void thread2()
 
 int main()
 {
-	//Game::initialize_game();
-	l.lock();
-	l.unlock();
-	l.lock();
-	l.unlock();
+	Game::initialize_game();
+	//l.lock();
+	//l.unlock();
+	//l.lock();
+	//l.unlock();
 	//std::thread t1(thread1);
 	//std::thread t2(thread2);
 

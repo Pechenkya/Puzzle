@@ -17,6 +17,7 @@ sf::Font Game::FONT;
 //Table parameters
 Game::Node*** Game::table;
 size_t Game::side_length;
+Game::Node* Game::empty_node;
 //
 
 //Window parameters
@@ -32,7 +33,8 @@ Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _
 	rectangle->setFillColor(NODE_COLOR);
 	rectangle->setOutlineColor(OUTLINE_COLOR);
 	rectangle->setOutlineThickness(0.f);
-	value = (_j + 1) * side_length + i + 1;
+
+	value = j * side_length + i + 1;
 	text = new sf::Text(sf::String(std::to_string(value)), FONT);
 	text->setPosition(sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3));
 	text->setCharacterSize(static_cast<int>(node_size / 3));
@@ -47,8 +49,11 @@ bool Game::Node::contains(const sf::Vector2f & pos)
 
 void Game::Node::draw(sf::RenderWindow & window)
 {
-	window.draw(*rectangle);
-	window.draw(*text);
+	if (this != empty_node)
+	{
+		window.draw(*rectangle);
+		window.draw(*text);
+	}
 }
 
 void Game::initialize_game(size_t sl)
@@ -79,9 +84,9 @@ void Game::initialize_game(size_t sl)
 	float node_size = (table_side_size * 0.8 * 0.875) / sl;
 
 	sf::Vector2f position = starting_position;
-	for (int i = 0; i < sl; i++)
+	for (int j = 0; j < side_length; j++)
 	{
-		for (int j = 0; j < sl; j++)
+		for (int i = 0; i < side_length; i++)
 		{
 			table[i][j] = new Node(i, j, node_size, position);
 			position.x += offset + node_size;
@@ -89,6 +94,7 @@ void Game::initialize_game(size_t sl)
 		position.x = starting_position.x;
 		position.y += offset + node_size;
 	}
+	empty_node = table[side_length - 1][side_length - 1];
 
 	start_game();
 }
