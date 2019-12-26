@@ -30,8 +30,8 @@ class Game
 		sf::Text* text;
 	public:
 		int value;
-		const int i, j;
-		Node(int _i, int _j, float node_size, sf::Vector2f pos);
+		const size_t i, j;
+		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 
 		bool contains(const sf::Vector2f& pos);
 		void draw(sf::RenderWindow& window);
@@ -50,14 +50,14 @@ class Game
 	};
 
 public:
-	static void initialize_game(unsigned int sl = 4);
+	static void initialize_game(size_t sl = 4);
 	static bool start_game();
 
 private:
 	//Base game propeties
 	static const float window_width;
 	static const float window_height;
-	static unsigned int side_length;
+	static size_t side_length;
 	static Node*** table; // I tut ya zvezdanulsya
 	//
 

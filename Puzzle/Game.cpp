@@ -16,7 +16,7 @@ sf::Font Game::FONT;
 
 //Table parameters
 Game::Node*** Game::table;
-unsigned int Game::side_length;
+size_t Game::side_length;
 //
 
 //Window parameters
@@ -25,7 +25,7 @@ const float Game::window_width = 1280;
 sf::RenderWindow* Game::window;
 //
 
-Game::Node::Node(int _i, int _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }
+Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }
 {
 	rectangle = new sf::RectangleShape(sf::Vector2f(node_size, node_size));
 	rectangle->setPosition(pos);
@@ -51,7 +51,7 @@ void Game::Node::draw(sf::RenderWindow & window)
 	window.draw(*text);
 }
 
-void Game::initialize_game(unsigned int sl)
+void Game::initialize_game(size_t sl)
 {
 	window = new sf::RenderWindow(sf::VideoMode(window_width, window_height), "Puzzle", sf::Style::Titlebar | sf::Style::Close);
 	FONT.loadFromFile("ArialRegular.ttf");
@@ -71,9 +71,9 @@ void Game::initialize_game(unsigned int sl)
 		starting_position.y = padding + table_side_size * 0.1;
 	}
 
-	table = new Node**[table_side_size];
-	for (int i = 0; i < table_side_size; i++)
-		table[i] = new Node*[table_side_size];
+	table = new Node**[side_length];
+	for (int i = 0; i < side_length; i++)
+		table[i] = new Node*[side_length];
 
 	float offset = (table_side_size * 0.1) / (sl - 1);  // Blin, opyat' zvezdanulsya
 	float node_size = (table_side_size * 0.8 * 0.875) / sl;
