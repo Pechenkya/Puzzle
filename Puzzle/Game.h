@@ -3,7 +3,6 @@
 #include <deque>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
-//#include <mutex>
 
 namespace std
 {
@@ -32,7 +31,9 @@ class Game
 		int value;
 		const size_t i, j;
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
+		~Node();
 
+		void swap(Node* node);
 		bool contains(const sf::Vector2f& pos);
 		void draw(sf::RenderWindow& window);
 	};
@@ -44,14 +45,16 @@ class Game
 
 	private: 
 		std::deque <sf::Event> events;
-		std::condition_variable cv;
-		std::mutex mudax;
-		std::unique_lock<std::mutex> lock{ mudax };
+		std::condition_variable qcv;
+		std::mutex qm;
+		std::mutex qm2;
+		std::unique_lock<std::mutex> ql{ qm, std::defer_lock };
 	};
 
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
+	static EventQueue* mouse_move_events;
 
 private:
 	//Base game propeties
@@ -65,7 +68,6 @@ private:
 	static sf::Font FONT;
 	static sf::RenderWindow* window; // Could be redundant
 	static Node* selected_node;
-	static EventQueue mouse_move_events;
 	static void draw_process();
 	//
 

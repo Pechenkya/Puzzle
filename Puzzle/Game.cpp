@@ -1,5 +1,6 @@
 #include "Game.h"
 #include <algorithm>
+#include <iostream>
 #include <SFML/System/String.hpp>
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/System/Vector2.hpp>
@@ -14,10 +15,13 @@ const sf::Color OUTLINE_COLOR = sf::Color::Yellow;
 sf::Font Game::FONT;
 //
 
+Game::EventQueue* Game::mouse_move_events = nullptr;
+
 //Table parameters
-Game::Node*** Game::table;
+Game::Node*** Game::table = nullptr;
 size_t Game::side_length;
-Game::Node* Game::empty_node;
+Game::Node* Game::empty_node = nullptr;
+Game::Node* Game::selected_node = nullptr;
 //
 
 //Window parameters
@@ -28,17 +32,40 @@ sf::RenderWindow* Game::window;
 
 Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }
 {
-	rectangle = new sf::RectangleShape(sf::Vector2f(node_size, node_size));
-	rectangle->setPosition(pos);
-	rectangle->setFillColor(NODE_COLOR);
-	rectangle->setOutlineColor(OUTLINE_COLOR);
-	rectangle->setOutlineThickness(0.f);
-
 	value = j * side_length + i + 1;
-	text = new sf::Text(sf::String(std::to_string(value)), FONT);
-	text->setPosition(sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3));
-	text->setCharacterSize(static_cast<int>(node_size / 3));
-	text->setFillColor(BG_COLOR);
+	if (value == side_length * side_length)
+	{
+		rectangle = nullptr;
+		text = nullptr;
+	}
+	else
+	{
+		rectangle = new sf::RectangleShape(sf::Vector2f(node_size, node_size));
+		rectangle->setPosition(pos);
+		rectangle->setFillColor(NODE_COLOR);
+		rectangle->setOutlineColor(OUTLINE_COLOR);
+		rectangle->setOutlineThickness(0.f);
+		text = new sf::Text(sf::String(std::to_string(value)), FONT);
+		text->setPosition(sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3));
+		text->setCharacterSize(static_cast<int>(node_size / 3));
+		text->setFillColor(BG_COLOR);
+	}
+}
+
+Game::Node::~Node()
+{
+	delete this->rectangle;
+	delete this->text;
+}
+
+void Game::Node::swap(Node* node)
+{
+	node->rectangle = this->rectangle;
+	this->rectangle = nullptr;
+	node->text = this->text;
+	this->text = nullptr;
+	node->value = this->value;
+	this->value = side_length * side_length;
 }
 
 bool Game::Node::contains(const sf::Vector2f & pos)
@@ -95,12 +122,24 @@ void Game::initialize_game(size_t sl)
 		position.y += offset + node_size;
 	}
 	empty_node = table[side_length - 1][side_length - 1];
+	mouse_move_events = new EventQueue();
+}
 
-	start_game();
+void testfunc()
+{		
+	while (true)
+	{
+		std::cout << "1";
+		sf::Event e = Game::mouse_move_events->pop();
+
+		std::cout << e.mouseMove.x << " " << e.mouseMove.y << std::endl;
+	}
 }
 
 bool Game::start_game()
 {
+	std::thread t(testfunc);
+
 	while (window->isOpen())
 	{
 		sf::Event event;
@@ -108,14 +147,18 @@ bool Game::start_game()
 		{
 			if (event.type == sf::Event::Closed)
 				window->close();
+			else if (event.type == sf::Event::MouseMoved)
+				mouse_move_events->push(event);
 		}
 
 		window->clear();
-		for (int i = 0; i < side_length; i++)
-			for (int j = 0; j < side_length; j++)
-				table[i][j]->draw(*window);
+
+		for (int k = 0; k < side_length * side_length; k++)
+			table[k % side_length][k / side_length]->draw(*window);
+
 		window->display();
 	}
+	t.join();
 	return true;
 }
 
@@ -124,28 +167,38 @@ std::vector<Game::Node*> Game::get_adjacent(const Game::Node & this_node)
 	std::vector<Game::Node*> adjacents;
 	if (this_node.i != 0)
 		adjacents.push_back(table[this_node.i - 1][this_node.j]);
+
 	if(this_node.i != side_length - 1)
 		adjacents.push_back(table[this_node.i + 1][this_node.j]);
+
 	if (this_node.j != 0)
 		adjacents.push_back(table[this_node.i][this_node.j - 1]);
+
 	if (this_node.j != side_length - 1)
 		adjacents.push_back(table[this_node.i][this_node.j + 1]);
+
 	return adjacents;
 }
 
 sf::Event Game::EventQueue::pop()
 {
 	if (events.empty())
-		cv.wait(lock);
+		qcv.wait(ql);
 
+	qm2.lock();
 	sf::Event event = events.back();
 	events.pop_back();
+	qm2.unlock();
 	return event;
 }
 
 void Game::EventQueue::push(const sf::Event & event)
 {
+	qm2.lock();
+	bool empty = events.empty();
 	events.push_front(event);
-	if (events.size() == 1)
-		cv.notify_one();
+	if (empty)
+		qcv.notify_all();
+
+	qm2.unlock();
 }

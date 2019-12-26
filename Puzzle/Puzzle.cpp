@@ -31,6 +31,7 @@ void thread2()
 int main()
 {
 	Game::initialize_game();
+	Game::start_game();
 	//l.lock();
 	//l.unlock();
 	//l.lock();
