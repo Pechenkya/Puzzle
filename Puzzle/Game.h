@@ -28,6 +28,11 @@ class Game
 {
 	struct Node
 	{
+		struct Animation
+		{
+
+		};
+
 	private:
 		sf::RectangleShape* rectangle;
 		sf::Text* text;
@@ -38,6 +43,7 @@ class Game
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
+		void move_animation(sf::Vector2f pos);
 		void swap(Node* node);
 		void set_selected();
 		void remove_outline();
@@ -72,7 +78,7 @@ class Game
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
-	static EventQueue* mouse_move_events;
+	
 
 
 private:
@@ -89,10 +95,12 @@ private:
 
 	//Drawing thread values
 	static sf::Font FONT;
-	static sf::RenderWindow* window; // Could be redundant
+	static sf::RenderWindow* window;
 	static Node* selected_node;
 	static void draw_process();
 	static PositionTree* pos_tree;
+	static EventQueue* mouse_move_events;
+	static EventQueue* mouse_click_events;
 	//
 
 	//Node

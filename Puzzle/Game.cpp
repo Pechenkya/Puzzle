@@ -17,6 +17,7 @@ sf::Font Game::FONT;
 //
 
 Game::EventQueue* Game::mouse_move_events = nullptr;
+Game::EventQueue* Game::mouse_click_events = nullptr;
 Game::PositionTree* Game::pos_tree = nullptr;
 
 long long int Game::check_counter = 0;
@@ -138,13 +139,14 @@ void Game::initialize_game(size_t sl)
 	}
 	empty_node = table[side_length - 1][side_length - 1];
 	mouse_move_events = new EventQueue();
+	mouse_click_events = new EventQueue();
 
 	pos_tree = new PositionTree();
 }
 
 void Game::draw_process()
 {		
-	while (true)
+	while (window->isOpen())
 	{
 		sf::Event e = Game::mouse_move_events->pop();
 		if (selected_node && selected_node->contains(sf::Vector2f(e.mouseMove.x, e.mouseMove.y)))
@@ -175,6 +177,8 @@ bool Game::start_game()
 				window->close();
 			else if (event.type == sf::Event::MouseMoved)
 				mouse_move_events->push(event);
+			else if (event.type == sf::Event::MouseButtonPressed)
+				mouse_click_events->push(event);
 		}
 		window->clear();
 
@@ -203,6 +207,11 @@ std::vector<Game::Node*> Game::get_adjacent(const Game::Node & this_node)
 		adjacents.push_back(table[this_node.i][this_node.j + 1]);
 
 	return adjacents;
+}
+
+void Game::click_process()
+{
+
 }
 
 sf::Event Game::EventQueue::pop()
