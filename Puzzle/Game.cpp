@@ -1,6 +1,7 @@
 #include "Game.h"
 #include <algorithm>
 #include <iostream>
+#include <utility>
 #include <SFML/System/String.hpp>
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/System/Vector2.hpp>
@@ -16,6 +17,9 @@ sf::Font Game::FONT;
 //
 
 Game::EventQueue* Game::mouse_move_events = nullptr;
+Game::PositionTree* Game::pos_tree = nullptr;
+
+long long int Game::check_counter = 0;
 
 //Table parameters
 Game::Node*** Game::table = nullptr;
@@ -30,7 +34,7 @@ const float Game::window_width = 1280;
 sf::RenderWindow* Game::window;
 //
 
-Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }
+Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, position{ pos }
 {
 	value = j * side_length + i + 1;
 	if (value == side_length * side_length)
@@ -68,13 +72,24 @@ void Game::Node::swap(Node* node)
 	this->value = side_length * side_length;
 }
 
-bool Game::Node::contains(const sf::Vector2f & pos)
+void Game::Node::set_selected()
+{
+	rectangle->setOutlineThickness(5.f);
+	selected_node = this;
+}
+
+void Game::Node::remove_outline()
+{
+	rectangle->setOutlineThickness(0.f);
+}
+
+bool Game::Node::contains(const sf::Vector2f & pos) const
 {
 	return !((pos.x > rectangle->getPosition().x + rectangle->getSize().x || pos.x < rectangle->getPosition().x)
 		|| (pos.y > rectangle->getPosition().y + rectangle->getSize().y || pos.y < rectangle->getPosition().y));
 }
 
-void Game::Node::draw(sf::RenderWindow & window)
+void Game::Node::draw(sf::RenderWindow & window) const
 {
 	if (this != empty_node)
 	{
@@ -123,22 +138,33 @@ void Game::initialize_game(size_t sl)
 	}
 	empty_node = table[side_length - 1][side_length - 1];
 	mouse_move_events = new EventQueue();
+
+	pos_tree = new PositionTree();
 }
 
-void testfunc()
+void Game::draw_process()
 {		
 	while (true)
 	{
-		std::cout << "1";
 		sf::Event e = Game::mouse_move_events->pop();
+		if (selected_node && selected_node->contains(sf::Vector2f(e.mouseMove.x, e.mouseMove.y)))
+			continue;
+		
+		if (selected_node)
+		{
+			selected_node->remove_outline();
+			selected_node = nullptr;
+		}
 
-		std::cout << e.mouseMove.x << " " << e.mouseMove.y << std::endl;
+		Node* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
+		if (node && node != empty_node)
+			node->set_selected();
 	}
 }
 
 bool Game::start_game()
 {
-	std::thread t(testfunc);
+	std::thread t(draw_process);
 
 	while (window->isOpen())
 	{
@@ -150,7 +176,6 @@ bool Game::start_game()
 			else if (event.type == sf::Event::MouseMoved)
 				mouse_move_events->push(event);
 		}
-
 		window->clear();
 
 		for (int k = 0; k < side_length * side_length; k++)
@@ -183,12 +208,16 @@ std::vector<Game::Node*> Game::get_adjacent(const Game::Node & this_node)
 sf::Event Game::EventQueue::pop()
 {
 	if (events.empty())
+	{
+		ql.lock();
 		qcv.wait(ql);
+	}
 
 	qm2.lock();
 	sf::Event event = events.back();
 	events.pop_back();
 	qm2.unlock();
+	ql.unlock();
 	return event;
 }
 
@@ -201,4 +230,56 @@ void Game::EventQueue::push(const sf::Event & event)
 		qcv.notify_all();
 
 	qm2.unlock();
+}
+
+Game::Node* Game::PositionTree::match(float x, float y)
+{
+	int x_index = get_index(node_bounds_x, x);
+	if (x_index == -1)
+		return nullptr;
+
+	int y_index = get_index(node_bounds_y, y);
+	if (y_index == -1)
+		return nullptr;
+
+	return table[x_index][y_index];
+}
+
+Game::PositionTree::PositionTree()
+{
+	float node_size = (std::min(window_height, window_width) * 0.8 * 0.875) / side_length;
+	node_bounds_x = new std::pair<float, float>[side_length];
+	node_bounds_y = new std::pair<float, float>[side_length];
+
+	for (int i = 0; i < side_length; i++)
+	{
+		node_bounds_x[i] = std::make_pair(table[i][0]->position.x, table[i][0]->position.x + node_size);
+		node_bounds_y[i] = std::make_pair(table[0][i]->position.y, table[0][i]->position.y + node_size);
+	}
+}
+
+Game::PositionTree::~PositionTree()
+{
+	delete []node_bounds_x;
+	delete []node_bounds_y;
+}
+
+int Game::PositionTree::get_index(std::pair<float, float>* bounds_array, float pos, size_t a, size_t b)
+{
+	if (a >= b)
+	{
+		if (pos > bounds_array[a].second || pos < bounds_array[a].first)
+			return -1;
+		else
+			return a;
+	}
+
+	size_t m = (a + b) / 2;
+
+	if (pos < bounds_array[m].first)
+		return get_index(bounds_array, pos, a, m - 1);
+	else if (pos > bounds_array[m].second)
+		return get_index(bounds_array, pos, m + 1, b);
+	else
+		return m;
 }

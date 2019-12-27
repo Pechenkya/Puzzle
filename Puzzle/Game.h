@@ -18,6 +18,10 @@ namespace sf
 	class RenderWindow;
 	class Text;
 	class Font;
+	template<
+		class T1,
+		class T2
+	> struct pair;
 }
 
 class Game
@@ -29,13 +33,16 @@ class Game
 		sf::Text* text;
 	public:
 		int value;
+		const sf::Vector2f position;
 		const size_t i, j;
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
 		void swap(Node* node);
-		bool contains(const sf::Vector2f& pos);
-		void draw(sf::RenderWindow& window);
+		void set_selected();
+		void remove_outline();
+		bool contains(const sf::Vector2f& pos) const;
+		void draw(sf::RenderWindow& window) const;
 	};
 
 	struct EventQueue
@@ -51,10 +58,22 @@ class Game
 		std::unique_lock<std::mutex> ql{ qm, std::defer_lock };
 	};
 
+	struct PositionTree
+	{
+		Node* match(float x, float y);
+		PositionTree();
+		~PositionTree();
+	private:
+		std::pair<float, float>* node_bounds_x;
+		std::pair<float, float>* node_bounds_y;
+		int get_index(std::pair<float, float>* bounds_array, float pos, size_t a = 0, size_t b = side_length - 1);
+	};
+
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
 	static EventQueue* mouse_move_events;
+
 
 private:
 	//Base game propeties
@@ -64,11 +83,16 @@ private:
 	static Node*** table; // I tut ya zvezdanulsya
 	//
 
+	// TEST
+	static long long int check_counter;
+	//
+
 	//Drawing thread values
 	static sf::Font FONT;
 	static sf::RenderWindow* window; // Could be redundant
 	static Node* selected_node;
 	static void draw_process();
+	static PositionTree* pos_tree;
 	//
 
 	//Node
