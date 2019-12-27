@@ -207,7 +207,8 @@ std::vector<Game::Node*> Game::get_adjacent(const Game::Node & this_node)
 
 sf::Event Game::EventQueue::pop()
 {
-	if (events.empty())
+	bool empty = events.empty();
+	if (empty)
 	{
 		ql.lock();
 		qcv.wait(ql);
@@ -216,8 +217,12 @@ sf::Event Game::EventQueue::pop()
 	qm2.lock();
 	sf::Event event = events.back();
 	events.pop_back();
+
 	qm2.unlock();
-	ql.unlock();
+
+	if (empty)
+		ql.unlock();
+
 	return event;
 }
 
