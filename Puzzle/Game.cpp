@@ -63,6 +63,16 @@ Game::Node::~Node()
 	delete this->text;
 }
 
+void Game::Node::play_animation(const Animation & animation)
+{
+	for (int i = 0; i < animation.step_count; i++)
+	{
+		rectangle->move(animation.movement_table[i].first);
+		text->move(animation.movement_table[i].first);
+		std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long long>(animation.movement_table[i].second * 1000)));
+	}
+}
+
 void Game::Node::swap(Node* node)
 {
 	node->rectangle = this->rectangle;
@@ -71,17 +81,21 @@ void Game::Node::swap(Node* node)
 	this->text = nullptr;
 	node->value = this->value;
 	this->value = side_length * side_length;
+	empty_node = this;
 }
 
-void Game::Node::set_selected()
+void Game::Node::set_selected(bool selected)
 {
-	rectangle->setOutlineThickness(5.f);
-	selected_node = this;
-}
-
-void Game::Node::remove_outline()
-{
-	rectangle->setOutlineThickness(0.f);
+	if (selected)
+	{
+		rectangle->setOutlineThickness(5.f);
+		selected_node = this;
+	}
+	else
+	{
+		rectangle->setOutlineThickness(0.f);
+		selected_node = nullptr;
+	}
 }
 
 bool Game::Node::contains(const sf::Vector2f & pos) const
@@ -153,14 +167,11 @@ void Game::draw_process()
 			continue;
 		
 		if (selected_node)
-		{
-			selected_node->remove_outline();
-			selected_node = nullptr;
-		}
+			selected_node->set_selected(false);
 
 		Node* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
 		if (node && node != empty_node)
-			node->set_selected();
+			node->set_selected(true);
 	}
 }
 
@@ -191,27 +202,33 @@ bool Game::start_game()
 	return true;
 }
 
-std::vector<Game::Node*> Game::get_adjacent(const Game::Node & this_node)
+std::vector<Game::Node*> Game::get_adjacent(const Game::Node* this_node)
 {
 	std::vector<Game::Node*> adjacents;
-	if (this_node.i != 0)
-		adjacents.push_back(table[this_node.i - 1][this_node.j]);
+	if (this_node->i != 0)
+		adjacents.push_back(table[this_node->i - 1][this_node->j]);
 
-	if(this_node.i != side_length - 1)
-		adjacents.push_back(table[this_node.i + 1][this_node.j]);
+	if(this_node->i != side_length - 1)
+		adjacents.push_back(table[this_node->i + 1][this_node->j]);
 
-	if (this_node.j != 0)
-		adjacents.push_back(table[this_node.i][this_node.j - 1]);
+	if (this_node->j != 0)
+		adjacents.push_back(table[this_node->i][this_node->j - 1]);
 
-	if (this_node.j != side_length - 1)
-		adjacents.push_back(table[this_node.i][this_node.j + 1]);
+	if (this_node->j != side_length - 1)
+		adjacents.push_back(table[this_node->i][this_node->j + 1]);
 
 	return adjacents;
 }
 
 void Game::click_process()
 {
-
+	while (window->isOpen())
+	{
+		for (auto t : get_adjacent(empty_node))
+		{
+			t->set_selected(false);
+		}
+	}
 }
 
 sf::Event Game::EventQueue::pop()
@@ -296,4 +313,20 @@ int Game::PositionTree::get_index(std::pair<float, float>* bounds_array, float p
 		return get_index(bounds_array, pos, m + 1, b);
 	else
 		return m;
+}
+
+Game::Node::Animation::Animation(std::string expr_x, std::string expr_y, float t1, float t2)
+{
+	expression_tree expr_tree_x(expr_x, 't');
+	expression_tree expr_tree_y(expr_y, 't');
+
+	float diff = t2 - t1;
+	step_count = diff / 0.008;
+	float one_step_t = diff / step_count;
+	movement_table = new std::pair<sf::Vector2f, float>[step_count];
+	for (int i = 0; i < step_count; i++)
+	{
+		movement_table[i].first = sf::Vector2f(expr_tree_x.calculate(t1 + i * one_step_t), expr_tree_y.calculate(t1 + i * one_step_t));
+		movement_table[i].second = one_step_t;
+	}
 }

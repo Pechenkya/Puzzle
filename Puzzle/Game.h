@@ -4,6 +4,13 @@
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
 
+class expression_tree
+{
+public:
+	expression_tree(std::string input, char param = 'x');
+	double calculate(double);
+};
+
 namespace std
 {
 	class mutex;
@@ -28,12 +35,14 @@ class Game
 {
 	struct Node
 	{
+	private:
 		struct Animation
 		{
-
+			Animation(std::string expr, std::string expr_y, float t1, float t2);
+			std::pair<sf::Vector2f, float>* movement_table;
+			size_t step_count;
 		};
 
-	private:
 		sf::RectangleShape* rectangle;
 		sf::Text* text;
 	public:
@@ -43,10 +52,9 @@ class Game
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
-		void move_animation(sf::Vector2f pos);
+		void play_animation(const Animation& animation);
 		void swap(Node* node);
-		void set_selected();
-		void remove_outline();
+		void set_selected(bool selected);
 		bool contains(const sf::Vector2f& pos) const;
 		void draw(sf::RenderWindow& window) const;
 	};
@@ -104,7 +112,7 @@ private:
 	//
 
 	//Node
-	static std::vector<Node*> get_adjacent(const Node& this_node);
+	static std::vector<Node*> get_adjacent(const Node* this_node);
 	static Node* empty_node;
 	//
 
