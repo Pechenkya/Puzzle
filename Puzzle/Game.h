@@ -4,8 +4,9 @@
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
 #include <SFML/Graphics/Color.hpp>
+#include "ExpressionParser.h"
 
-class expression_tree;
+//class expression_tree;
 
 namespace std
 {
@@ -29,6 +30,8 @@ namespace sf
 
 class Game
 {
+	static std::mutex* th_mutex;
+
 	struct Node
 	{
 	private:
@@ -43,21 +46,23 @@ class Game
 		sf::Text* text;
 
 		void play_animation(const Animation& animation);
-		void swap(Node* node);
+		Node* swap_with_empty();
+		bool contains(const float& pos_x, const float& pos_y) const;
 
-		// TEST
-		static Animation* test_anime;
+		// Animations
+		static const Animation* animations[3][3];
 		//
-
 	public:
 		int value;
 		const sf::Vector2f position;
+		const sf::Vector2f text_position;
 		const size_t i, j;
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
-		void set_outline(float thickness, sf::Color color = sf::Color::Transparent);
-		bool contains(const sf::Vector2f& pos) const;
+		void try_move();
+		void select();
+		static void initialize_nodes();
 		void draw(sf::RenderWindow& window) const;
 	};
 
@@ -66,7 +71,10 @@ class Game
 		sf::Event pop();
 		void push(const sf::Event& event);
 
+		void disable();
+		void enable();
 	private: 
+		bool enabled = true;
 		std::deque <sf::Event> events;
 		std::condition_variable qcv;
 		std::mutex qm;
@@ -107,7 +115,6 @@ private:
 	//Drawing thread values
 	static sf::Font FONT;
 	static sf::RenderWindow* window;
-	static Node* selected_node;
 	static void draw_process();
 	static PositionTree* pos_tree;
 	static EventQueue* mouse_move_events;
@@ -115,7 +122,6 @@ private:
 	//
 
 	//Node
-	static void set_selected(Node* node, bool selected);
 	static std::vector<Node*> get_adjacent(const Node* this_node);
 	static Node* empty_node;
 	//

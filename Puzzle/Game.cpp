@@ -10,13 +10,19 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
+#include "integration.h"
+
 //Style parameters
 const sf::Color BG_COLOR = sf::Color::Black;
 const sf::Color NODE_COLOR = sf::Color::White;
 const sf::Color OUTLINE_COLOR = sf::Color::Yellow;
-const float OUTLINE_THICKNESS = 5.f; // TODO calculate?
+float OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
+
+float K = 100.f;
 //
+
+std::mutex* Game::th_mutex = new std::mutex;
 
 Game::EventQueue* Game::mouse_move_events = nullptr;
 Game::EventQueue* Game::mouse_click_events = nullptr;
@@ -24,13 +30,12 @@ Game::PositionTree* Game::pos_tree = nullptr;
 
 long long int Game::check_counter = 0;
 
-Game::Node::Animation* Game::Node::test_anime = new Game::Node::Animation("t*cos(t)", "t*sin(t)", -0.5f, 0.5f); // TODO test it
+const Game::Node::Animation* Game::Node::animations[3][3] = { nullptr };
 
 //Table parameters
 Game::Node*** Game::table = nullptr;
 size_t Game::side_length;
 Game::Node* Game::empty_node = nullptr;
-Game::Node* Game::selected_node = nullptr;
 //
 
 //Window parameters
@@ -39,7 +44,8 @@ const float Game::window_width = 1280;
 sf::RenderWindow* Game::window;
 //
 
-Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, position{ pos }
+Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, 
+	position{ pos }, text_position{ sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3) }
 {
 	value = j * side_length + i + 1;
 	if (value == side_length * side_length)
@@ -55,7 +61,7 @@ Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _
 		rectangle->setOutlineColor(OUTLINE_COLOR);
 		rectangle->setOutlineThickness(0.f);
 		text = new sf::Text(sf::String(std::to_string(value)), FONT);
-		text->setPosition(sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3));
+		text->setPosition(text_position);
 		text->setCharacterSize(static_cast<int>(node_size / 3));
 		text->setFillColor(BG_COLOR);
 	}
@@ -67,6 +73,54 @@ Game::Node::~Node()
 	delete this->text;
 }
 
+void Game::Node::try_move()
+{
+	rectangle->setOutlineThickness(0.f);
+
+	bool is_adjacent = false;
+	for (auto t : get_adjacent(empty_node))
+	{
+		if (this == t)
+		{
+			is_adjacent = true;
+			break;
+		}
+	}
+	Node* prev_node = this;
+
+	if (is_adjacent)
+		prev_node = swap_with_empty();
+
+	prev_node->play_animation(*animations[prev_node->i - i + 1][prev_node->j - j + 1]);
+}
+
+void Game::Node::select()
+{
+	sf::Color default_color = rectangle->getOutlineColor();
+	float default_thickness = rectangle->getOutlineThickness();
+	sf::RectangleShape* rect = rectangle;
+
+	rect->setOutlineColor(OUTLINE_COLOR);
+	rect->setOutlineThickness(OUTLINE_THICKNESS);
+
+	while (window->isOpen())
+	{
+		const sf::Event& e = mouse_move_events->pop();
+
+		th_mutex->lock();
+		th_mutex->unlock();
+
+		if (this == empty_node)
+			return;
+
+		if (!contains(e.mouseMove.x, e.mouseMove.y))
+			break;
+	}
+
+	rect->setOutlineColor(default_color);
+	rect->setOutlineThickness(default_thickness);
+}
+
 void Game::Node::play_animation(const Animation & animation)
 {
 	for (int i = 0; i < animation.step_count; i++)
@@ -75,60 +129,26 @@ void Game::Node::play_animation(const Animation & animation)
 		text->move(animation.movement_table[i].first);
 		std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<long long>(animation.movement_table[i].second * 1000)));
 	}
+	rectangle->setPosition(this->position);
+	text->setPosition(this->text_position);
 }
 
-void Game::Node::swap(Node* node)
+Game::Node* Game::Node::swap_with_empty()
 {
-	node->rectangle = this->rectangle;
+	empty_node->rectangle = this->rectangle;
 	this->rectangle = nullptr;
-	node->text = this->text;
+	empty_node->text = this->text;
 	this->text = nullptr;
-	node->value = this->value;
+	empty_node->value = this->value;
 	this->value = side_length * side_length;
+	Node* prev_node = empty_node;
 	empty_node = this;
+	return prev_node;
 }
 
-void Game::set_selected(Node* node, bool selected)
+void Game::Node::initialize_nodes()
 {
-	if (selected)
-	{
-		node->set_outline(OUTLINE_THICKNESS, OUTLINE_COLOR);
-		selected_node = node;
-	}
-	else
-	{
-		node->set_outline(0.f);
-		selected_node = nullptr;
-	}
-}
-
-void Game::Node::set_outline(float thickness, sf::Color color)
-{
-	rectangle->setOutlineThickness(thickness);
-	if (color != sf::Color::Transparent)
-		rectangle->setOutlineColor(color);
-}
-
-bool Game::Node::contains(const sf::Vector2f & pos) const
-{
-	return !((pos.x > rectangle->getPosition().x + rectangle->getSize().x || pos.x < rectangle->getPosition().x)
-		|| (pos.y > rectangle->getPosition().y + rectangle->getSize().y || pos.y < rectangle->getPosition().y));
-}
-
-void Game::Node::draw(sf::RenderWindow & window) const
-{
-	if (this != empty_node)
-	{
-		window.draw(*rectangle);
-		window.draw(*text);
-	}
-}
-
-void Game::initialize_game(size_t sl)
-{
-	window = new sf::RenderWindow(sf::VideoMode(window_width, window_height), "Puzzle", sf::Style::Titlebar | sf::Style::Close);
-	FONT.loadFromFile("ArialRegular.ttf");
-	side_length = sl;
+	
 
 	float table_side_size = std::min(window_height, window_width);
 	float padding = (std::max(window_height, window_width) - table_side_size) / 2;
@@ -148,8 +168,9 @@ void Game::initialize_game(size_t sl)
 	for (int i = 0; i < side_length; i++)
 		table[i] = new Node*[side_length];
 
-	float offset = (table_side_size * 0.1) / (sl - 1);  // Blin, opyat' zvezdanulsya
-	float node_size = (table_side_size * 0.8 * 0.875) / sl;
+	float offset = (table_side_size * 0.1) / (side_length - 1);  // Blin, opyat' zvezdanulsya
+	float node_size = (table_side_size * 0.8 * 0.875) / side_length;
+	OUTLINE_THICKNESS = offset / 3.f;
 
 	sf::Vector2f position = starting_position;
 	for (int j = 0; j < side_length; j++)
@@ -163,11 +184,43 @@ void Game::initialize_game(size_t sl)
 		position.y += offset + node_size;
 	}
 	empty_node = table[side_length - 1][side_length - 1];
+
+	//Animations
+	float V = 0.15f*K + (node_size + offset) / 0.3f;
+	animations[1][1] = new Animation("t*cos(50*t)", "t*cos(50*t)", -0.5f, 0.5f);
+	//std::string move_equation = std::to_string(V) + "-t";
+	animations[1][2] = new Animation("0", "4-2*t", 0.f, 0.3f);
+	animations[2][1] = new Animation("4+2*t", "0", 0.f, 0.3f);
+	animations[1][0] = new Animation("0", "-4+2*t", 0.f, 0.3f);
+	animations[0][1] = new Animation("-4-2*t", "0", 0.f, 0.3f);
+	//
+}
+
+bool Game::Node::contains(const float& pos_x, const float& pos_y) const
+{
+	return !((pos_x > rectangle->getPosition().x + rectangle->getSize().x || pos_x < rectangle->getPosition().x)
+		|| (pos_y > rectangle->getPosition().y + rectangle->getSize().y || pos_y < rectangle->getPosition().y));
+}
+
+void Game::Node::draw(sf::RenderWindow & window) const
+{
+	if (this != empty_node)
+	{
+		window.draw(*rectangle);
+		window.draw(*text);
+	}
+}
+
+void Game::initialize_game(size_t sl)
+{
+	window = new sf::RenderWindow(sf::VideoMode(window_width, window_height), "Puzzle", sf::Style::Titlebar | sf::Style::Close);
+	FONT.loadFromFile("ArialRegular.ttf");
+	side_length = sl;
+
+	Node::initialize_nodes();
+	
 	mouse_move_events = new EventQueue();
 	mouse_click_events = new EventQueue();
-
-
-
 	pos_tree = new PositionTree();
 }
 
@@ -175,22 +228,21 @@ void Game::draw_process()
 {		
 	while (window->isOpen())
 	{
-		sf::Event e = Game::mouse_move_events->pop();
-		if (selected_node && selected_node->contains(sf::Vector2f(e.mouseMove.x, e.mouseMove.y)))
-			continue;
-		
-		if (selected_node)
-			set_selected(selected_node, false);
+		th_mutex->lock();
+		th_mutex->unlock();
+
+		const sf::Event& e = mouse_move_events->pop();
 
 		Node* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
 		if (node && node != empty_node)
-			set_selected(node, true);
+			node->select();
 	}
 }
 
 bool Game::start_game()
 {
-	std::thread t(draw_process);
+	std::thread draw_thread(draw_process);
+	std::thread click_thread(click_process);
 
 	while (window->isOpen())
 	{
@@ -211,7 +263,9 @@ bool Game::start_game()
 
 		window->display();
 	}
-	t.join();
+
+	draw_thread.join();
+	click_thread.join();
 	return true;
 }
 
@@ -237,17 +291,17 @@ void Game::click_process()
 {
 	while (window->isOpen())
 	{
-		for (auto t : get_adjacent(empty_node))
-			t->set_outline(0.f);
+		const sf::Event& e = mouse_click_events->pop();
+		Node* node = pos_tree->match(e.mouseButton.x, e.mouseButton.y);
 
-		//...
-
-		// TODO
-
-		//...
-
-		for (auto t : get_adjacent(empty_node))
-			t->set_outline(OUTLINE_THICKNESS, sf::Color::Green);
+		if (node && node != empty_node)
+		{
+			mouse_click_events->disable();
+			th_mutex->lock();
+			node->try_move();
+			th_mutex->unlock();
+			mouse_click_events->enable();
+		}
 	}
 }
 
@@ -274,6 +328,9 @@ sf::Event Game::EventQueue::pop()
 
 void Game::EventQueue::push(const sf::Event & event)
 {
+	if (!enabled)
+		return;
+
 	qm2.lock();
 	bool empty = events.empty();
 	events.push_front(event);
@@ -281,6 +338,16 @@ void Game::EventQueue::push(const sf::Event & event)
 		qcv.notify_all();
 
 	qm2.unlock();
+}
+
+void Game::EventQueue::disable()
+{
+	enabled = false;
+}
+
+void Game::EventQueue::enable()
+{
+	enabled = true;
 }
 
 Game::Node* Game::PositionTree::match(float x, float y)
@@ -341,8 +408,8 @@ Game::Node::Animation::Animation(std::string expr_x, std::string expr_y, float t
 	expression_tree expr_tree_y(expr_y, 't');
 
 	float diff = t2 - t1;
-	step_count = diff / 0.008;
-	float one_step_t = diff / step_count;
+	step_count = diff / 0.008 + 1;
+	float one_step_t = 0.008;
 	movement_table = new std::pair<sf::Vector2f, float>[step_count];
 	for (int i = 0; i < step_count; i++)
 	{
