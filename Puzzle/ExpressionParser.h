@@ -11,7 +11,7 @@ public:
 		param, sum, dif, prod, div, pow, sqr, sin, cos, tan, cot, log, lgn, num
 	};
 
-	op_type operator++(op_type& p);
+
 
 	struct operation
 	{
@@ -24,20 +24,20 @@ public:
 private:
 	using operands = std::pair<operation*, operation*>;
 
-	static double param (const operands&);
-	static double sum   (const operands&);
-	static double dif   (const operands&);
-	static double prod  (const operands&);
-	static double div   (const operands&);
-	static double pow   (const operands&);
-	static double sqr	(const operands&);
-	static double sin   (const operands&);
-	static double cos   (const operands&);
-	static double tan   (const operands&);
-	static double cot   (const operands&);
-	static double log   (const operands&);
-	static double lgn   (const operands&);
-	
+	static double param(const operands&);
+	static double sum(const operands&);
+	static double dif(const operands&);
+	static double prod(const operands&);
+	static double div(const operands&);
+	static double pow(const operands&);
+	static double sqr(const operands&);
+	static double sin(const operands&);
+	static double cos(const operands&);
+	static double tan(const operands&);
+	static double cot(const operands&);
+	static double log(const operands&);
+	static double lgn(const operands&);
+
 public:
 	expression_tree(std::string input, char param = 'x');
 	double calculate(double);
@@ -63,3 +63,8 @@ private:
 	static double param_value;
 	static std::function<double(const std::pair<operation*, operation*>&)> operations[13];
 };
+
+expression_tree::op_type operator++(expression_tree::op_type& p);
+
+
+
