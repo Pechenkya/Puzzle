@@ -7,8 +7,8 @@ using operands = std::pair<expression_tree::operation*, expression_tree::operati
 using op_t = expression_tree::op_type;
 
 std::function<double(const operands&)> expression_tree::operations[13]
-{ 
-	param, sum, dif, prod, div, pow, sqr, sin, cos, tan, cot, log, lgn 
+{
+	param, sum, dif, prod, div, pow, sqr, sin, cos, tan, cot, log, lgn
 };
 
 char expression_tree::st[6]
@@ -20,6 +20,11 @@ double expression_tree::param_value;
 
 expression_tree::expression_tree(std::string input, char param) :param_name{ param }
 {
+	for (int i = input.length() - 1; i >= 0; --i)
+	{
+		if (input.at(i) == ' ')
+			input.erase(i, 1);
+	}
 	root = parse_subexpr(input);
 }
 //
@@ -45,12 +50,12 @@ operation_t* expression_tree::parse_subexpr(std::string expression)
 		if (del != 0)
 		{
 			return new operation_t(operations[op_index],
-				parse_subexpr(expression.substr(0, del - 1)),
+				parse_subexpr(expression.substr(0, del)),
 				parse_subexpr(expression.substr(del + 1, expression.length() - 1)));
 		}
 	}
 
-	return parse_func(expression); 
+	return parse_func(expression);
 }
 
 void expression_tree::parse_token(const std::string& str, int& a)
@@ -70,7 +75,7 @@ void expression_tree::parse_token(const std::string& str, int& a)
 		}
 	}
 
-	while (true)
+	while (a >= 0)
 	{
 		if (a == 0 || is_terminator(str[a]) || is_terminator(str[a - 1])) { a--;  break; }
 		a--;
@@ -89,20 +94,20 @@ operation_t* expression_tree::parse_func(std::string token)
 
 	op_t type = get_func_type(token.substr(0, 3));
 
-	if (token.size() < 6 || type == op_t::num)
+	if (token.size() < 6 && type == op_t::num)
 	{
 		double a = std::stod(token);
 		return new operation_t([a](const operands&) { return a; });
 	}
 
-	int i = get_delim_index(token, ',');
+	int i = get_delim_index(token.substr(4, token.size() - 5), ',') + 4;
 
-	if (i == 0)
-		return new operation_t(operations[static_cast<int>(type)], parse_subexpr(token.substr(3, token.size() - 4)));
+	if (i == 4)
+		return new operation_t(operations[static_cast<int>(type)], parse_subexpr(token.substr(4, token.size() - 5)));
 	else
 		return new	operation_t(operations[static_cast<int>(type)],
-			parse_subexpr(token.substr(3, i - 4)),
-			parse_subexpr(token.substr(i + 1, token.size() - i)));
+			parse_subexpr(token.substr(4, i - 4)),
+			parse_subexpr(token.substr(i + 1, token.size() - i - 2)));
 
 }
 //
@@ -124,14 +129,9 @@ int expression_tree::get_delim_index(const std::string& str, char delim)
 
 	do
 		parse_token(str, i);
-	while (str.at(i + 1) != delim);
+	while (str.at(i + 1) != delim && i >= 0);
 
 	return i + 1;
-}
-
-op_t expression_tree::operator++(op_t& p)
-{
-	return p = op_t(static_cast<std::underlying_type<op_t>::type>(p) + 1);
 }
 //
 double expression_tree::param(const operands&)
@@ -203,5 +203,11 @@ expression_tree::operation::operation(std::function<double(std::pair<operation*,
 
 double expression_tree::operation::get()
 {
-	return func(operands());
+	return func(op);
 }
+
+expression_tree::op_type operator++(expression_tree::op_type& p)
+{
+	return p = op_t(static_cast<std::underlying_type<op_t>::type>(p) + 1);
+}
+
