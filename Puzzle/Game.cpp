@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "ExpressionParser.h"
 #include <algorithm>
 #include <iostream>
 #include <utility>
@@ -13,6 +14,7 @@
 const sf::Color BG_COLOR = sf::Color::Black;
 const sf::Color NODE_COLOR = sf::Color::White;
 const sf::Color OUTLINE_COLOR = sf::Color::Yellow;
+const float OUTLINE_THICKNESS = 5.f; // TODO calculate?
 sf::Font Game::FONT;
 //
 
@@ -21,6 +23,8 @@ Game::EventQueue* Game::mouse_click_events = nullptr;
 Game::PositionTree* Game::pos_tree = nullptr;
 
 long long int Game::check_counter = 0;
+
+Game::Node::Animation* Game::Node::test_anime = new Game::Node::Animation("t*cos(t)", "t*sin(t)", -0.5f, 0.5f); // TODO test it
 
 //Table parameters
 Game::Node*** Game::table = nullptr;
@@ -84,18 +88,25 @@ void Game::Node::swap(Node* node)
 	empty_node = this;
 }
 
-void Game::Node::set_selected(bool selected)
+void Game::set_selected(Node* node, bool selected)
 {
 	if (selected)
 	{
-		rectangle->setOutlineThickness(5.f);
-		selected_node = this;
+		node->set_outline(OUTLINE_THICKNESS, OUTLINE_COLOR);
+		selected_node = node;
 	}
 	else
 	{
-		rectangle->setOutlineThickness(0.f);
+		node->set_outline(0.f);
 		selected_node = nullptr;
 	}
+}
+
+void Game::Node::set_outline(float thickness, sf::Color color)
+{
+	rectangle->setOutlineThickness(thickness);
+	if (color != sf::Color::Transparent)
+		rectangle->setOutlineColor(color);
 }
 
 bool Game::Node::contains(const sf::Vector2f & pos) const
@@ -155,6 +166,8 @@ void Game::initialize_game(size_t sl)
 	mouse_move_events = new EventQueue();
 	mouse_click_events = new EventQueue();
 
+
+
 	pos_tree = new PositionTree();
 }
 
@@ -167,11 +180,11 @@ void Game::draw_process()
 			continue;
 		
 		if (selected_node)
-			selected_node->set_selected(false);
+			set_selected(selected_node, false);
 
 		Node* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
 		if (node && node != empty_node)
-			node->set_selected(true);
+			set_selected(node, true);
 	}
 }
 
@@ -225,9 +238,16 @@ void Game::click_process()
 	while (window->isOpen())
 	{
 		for (auto t : get_adjacent(empty_node))
-		{
-			t->set_selected(false);
-		}
+			t->set_outline(0.f);
+
+		//...
+
+		// TODO
+
+		//...
+
+		for (auto t : get_adjacent(empty_node))
+			t->set_outline(OUTLINE_THICKNESS, sf::Color::Green);
 	}
 }
 

@@ -11,8 +11,6 @@ public:
 		param, sum, dif, prod, div, pow, sqr, sin, cos, tan, cot, log, lgn, num
 	};
 
-
-
 	struct operation
 	{
 		operation(std::function<double(std::pair<operation*, operation*>)>, operation* = nullptr, operation* = nullptr);

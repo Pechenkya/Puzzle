@@ -3,13 +3,9 @@
 #include <deque>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
+#include <SFML/Graphics/Color.hpp>
 
-class expression_tree
-{
-public:
-	expression_tree(std::string input, char param = 'x');
-	double calculate(double);
-};
+class expression_tree;
 
 namespace std
 {
@@ -38,13 +34,21 @@ class Game
 	private:
 		struct Animation
 		{
-			Animation(std::string expr, std::string expr_y, float t1, float t2);
+			Animation(std::string expr_x, std::string expr_y, float t1, float t2);
 			std::pair<sf::Vector2f, float>* movement_table;
 			size_t step_count;
 		};
 
 		sf::RectangleShape* rectangle;
 		sf::Text* text;
+
+		void play_animation(const Animation& animation);
+		void swap(Node* node);
+
+		// TEST
+		static Animation* test_anime;
+		//
+
 	public:
 		int value;
 		const sf::Vector2f position;
@@ -52,9 +56,7 @@ class Game
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
-		void play_animation(const Animation& animation);
-		void swap(Node* node);
-		void set_selected(bool selected);
+		void set_outline(float thickness, sf::Color color = sf::Color::Transparent);
 		bool contains(const sf::Vector2f& pos) const;
 		void draw(sf::RenderWindow& window) const;
 	};
@@ -99,6 +101,7 @@ private:
 
 	// TEST
 	static long long int check_counter;
+
 	//
 
 	//Drawing thread values
@@ -112,6 +115,7 @@ private:
 	//
 
 	//Node
+	static void set_selected(Node* node, bool selected);
 	static std::vector<Node*> get_adjacent(const Node* this_node);
 	static Node* empty_node;
 	//
