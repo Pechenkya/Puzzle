@@ -30,7 +30,7 @@ void thread2()
 
 int main()
 {
-	Game::initialize_game();
+	Game::initialize_game(20);
 	Game::start_game();
 	//l.lock();
 	//l.unlock();

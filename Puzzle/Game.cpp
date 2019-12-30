@@ -116,10 +116,13 @@ void Game::Node::try_move()
 		END_INTERACTION(t);
 	}
 
-	BEGIN_INTERACTION(prev_node);
-	prev_node->rectangle->setOutlineColor(OUTLINE_COLOR);
-	prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
-	END_INTERACTION(prev_node);
+	if (!is_adjacent)
+	{
+		BEGIN_INTERACTION(prev_node);
+		prev_node->rectangle->setOutlineColor(OUTLINE_COLOR);
+		prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
+		END_INTERACTION(prev_node);
+	}
 }
 
 void Game::Node::select()
@@ -151,8 +154,10 @@ void Game::Node::select()
 		END_INTERACTION(this);
 	}
 
+	BEGIN_INTERACTION(this);
 	rect->setOutlineColor(default_color);
 	rect->setOutlineThickness(default_thickness);
+	END_INTERACTION(this);
 }
 
 void Game::Node::play_animation(const Animation & animation)
@@ -321,7 +326,6 @@ bool Game::start_game()
 	return true;
 }
 
-
 void Game::update_empty_adj()
 {
 	empty_adjacent->clear();
@@ -359,8 +363,9 @@ void Game::click_process()
 			mouse_move_events->enable();
 
 			sf::Event e;
-			e.mouseMove.x = sf::Mouse::getPosition().x;
-			e.mouseMove.y = sf::Mouse::getPosition().y;
+			e.mouseMove.x = sf::Mouse::getPosition(*window).x;
+			e.mouseMove.y = sf::Mouse::getPosition(*window).y;
+			mouse_move_events->push(e);
 			mouse_move_events->push(e);
 
 			mouse_click_events->enable();
@@ -372,15 +377,15 @@ sf::Event Game::EventQueue::pop()
 {
 	BEGIN_INTERACTION(this);
 	bool empty = events.empty();
-	END_INTERACTION(this);
 
 	if (empty)
 	{
+		END_INTERACTION(this);
 		ql.lock();
 		qcv.wait(ql);
+		BEGIN_INTERACTION(this);
 	}
 
-	BEGIN_INTERACTION(this);
 	sf::Event event = events.back();
 	events.pop_back();
 
@@ -409,7 +414,6 @@ void Game::EventQueue::disable()
 {
 	BEGIN_INTERACTION(this);
 	enabled = false;
-	events.clear();
 	END_INTERACTION(this);
 }
 
@@ -417,6 +421,7 @@ void Game::EventQueue::enable()
 {
 	BEGIN_INTERACTION(this);
 	enabled = true;
+	events.clear();
 	END_INTERACTION(this);
 }
 
