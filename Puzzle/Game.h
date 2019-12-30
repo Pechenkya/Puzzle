@@ -82,7 +82,7 @@ class Game
 		std::deque <sf::Event> events;
 		std::condition_variable qcv;
 		std::mutex qm;
-		std::mutex qm2;
+		std::mutex interaction_mutex;
 		std::unique_lock<std::mutex> ql{ qm, std::defer_lock };
 	};
 

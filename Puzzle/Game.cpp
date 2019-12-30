@@ -10,7 +10,7 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
-#include "integration.h"
+//#include "integration.h"
 #include <cmath>
 
 #define BEGIN_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.lock()
@@ -18,7 +18,7 @@
 #define END_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.unlock()
 
 #define INTERACTION_RETURN  \
-interaction_mutex.unlock(); \
+this->interaction_mutex.unlock(); \
 return						\
 
 //Style parameters
@@ -26,6 +26,7 @@ const sf::Color BG_COLOR = sf::Color::Black;
 const sf::Color NODE_COLOR = sf::Color::White;
 const sf::Color OUTLINE_COLOR = sf::Color::Yellow;
 const sf::Color AVAILABILITY_COLOR = sf::Color::Blue;
+
 float OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
 
@@ -33,13 +34,15 @@ const float cant_move_animation_time = 0.2f;
 const float animation_time = 0.4f;
 //
 
+// Game static member
 Game::EventQueue* Game::mouse_move_events = nullptr;
 Game::EventQueue* Game::mouse_click_events = nullptr;
 Game::PositionTree* Game::pos_tree = nullptr;
 Game::AdjacentSet* Game::empty_adjacent = nullptr;
-const float Game::Node::Animation::one_step_t = 0.008f;
 
+const float Game::Node::Animation::one_step_t = 0.008f;
 const Game::Node::Animation* Game::Node::animations[3][3] = { nullptr };
+//
 
 //Table parameters
 Game::Node*** Game::table = nullptr;
@@ -114,6 +117,7 @@ void Game::Node::try_move()
 	}
 
 	BEGIN_INTERACTION(prev_node);
+	prev_node->rectangle->setOutlineColor(OUTLINE_COLOR);
 	prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
 	END_INTERACTION(prev_node);
 }
@@ -366,18 +370,21 @@ void Game::click_process()
 
 sf::Event Game::EventQueue::pop()
 {
+	BEGIN_INTERACTION(this);
 	bool empty = events.empty();
+	END_INTERACTION(this);
+
 	if (empty)
 	{
 		ql.lock();
 		qcv.wait(ql);
 	}
 
-	qm2.lock();
+	BEGIN_INTERACTION(this);
 	sf::Event event = events.back();
 	events.pop_back();
 
-	qm2.unlock();
+	END_INTERACTION(this);
 
 	if (empty)
 		ql.unlock();
@@ -387,27 +394,30 @@ sf::Event Game::EventQueue::pop()
 
 void Game::EventQueue::push(const sf::Event & event)
 {
-	if (!enabled)
-		return;
+	BEGIN_INTERACTION(this);
+	if (!enabled) { INTERACTION_RETURN; }
 
-	qm2.lock();
 	bool empty = events.empty();
 	events.push_front(event);
 	if (empty)
 		qcv.notify_all();
 
-	qm2.unlock();
+	END_INTERACTION(this);
 }
 
 void Game::EventQueue::disable()
 {
+	BEGIN_INTERACTION(this);
 	enabled = false;
 	events.clear();
+	END_INTERACTION(this);
 }
 
 void Game::EventQueue::enable()
 {
+	BEGIN_INTERACTION(this);
 	enabled = true;
+	END_INTERACTION(this);
 }
 
 Game::Node* Game::PositionTree::match(float x, float y)
