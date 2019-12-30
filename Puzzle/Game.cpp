@@ -1,8 +1,11 @@
 #include "Game.h"
 #include "ExpressionParser.h"
+
 #include <algorithm>
 #include <iostream>
 #include <utility>
+#include <cmath>
+
 #include <SFML/System/String.hpp>
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/System/Vector2.hpp>
@@ -10,22 +13,20 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
-//#include "integration.h"
-#include <cmath>
-
 #define BEGIN_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.lock()
 
 #define END_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.unlock()
 
-#define INTERACTION_RETURN  \
-this->interaction_mutex.unlock(); \
-return						\
+#define INTERACTION_RETURN(RETURN_TOKEN)    \
+this->interaction_mutex.unlock();			\
+return RETURN_TOKEN							\
+
 
 //Style parameters
 const sf::Color BG_COLOR = sf::Color::Black;
-const sf::Color NODE_COLOR = sf::Color::White;
-const sf::Color OUTLINE_COLOR = sf::Color::Yellow;
-const sf::Color AVAILABILITY_COLOR = sf::Color::Blue;
+const sf::Color NODE_COLOR = sf::Color(211, 211, 211);
+const sf::Color OUTLINE_COLOR = sf::Color::White;
+const sf::Color AVAILABILITY_COLOR = sf::Color(255, 173, 51);
 
 float OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
@@ -131,10 +132,10 @@ void Game::Node::select()
 	sf::Color default_color = rectangle->getOutlineColor();
 	float default_thickness = rectangle->getOutlineThickness();
 	sf::RectangleShape* rect = rectangle;
-	END_INTERACTION(this);
 
 	rect->setOutlineColor(OUTLINE_COLOR);
 	rect->setOutlineThickness(OUTLINE_THICKNESS);
+	END_INTERACTION(this);
 
 
 	while (window->isOpen())
@@ -143,7 +144,7 @@ void Game::Node::select()
 
 		BEGIN_INTERACTION(this);
 
-		if (this == empty_node) { INTERACTION_RETURN; }
+		if (this == empty_node) { INTERACTION_RETURN(); }
 
 		if (!contains(e.mouseMove.x, e.mouseMove.y))
 		{
@@ -248,6 +249,14 @@ void Game::Node::initialize_nodes()
 	animations[1][0] = new Animation("0", "-1*(" + move_equation + ")", 0.f, animation_time);
 	animations[0][1] = new Animation("-1*(" + move_equation + ")", "0", 0.f, animation_time);
 	//
+	update_empty_adj();
+	for (Node* t : get_adjacent())
+	{
+		BEGIN_INTERACTION(t);
+		t->rectangle->setOutlineColor(AVAILABILITY_COLOR);
+		t->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
+		END_INTERACTION(t);
+	}
 }
 
 bool Game::Node::contains(const float& pos_x, const float& pos_y) const
@@ -275,13 +284,11 @@ void Game::initialize_game(size_t sl)
 	FONT.loadFromFile("ArialRegular.ttf");
 	side_length = sl;
 
-	Node::initialize_nodes();
-	
 	mouse_move_events = new EventQueue();
 	mouse_click_events = new EventQueue();
-	pos_tree = new PositionTree();
 	empty_adjacent = new AdjacentSet();
-	update_empty_adj();
+	Node::initialize_nodes();
+	pos_tree = new PositionTree();
 }
 
 void Game::draw_process()
@@ -400,7 +407,7 @@ sf::Event Game::EventQueue::pop()
 void Game::EventQueue::push(const sf::Event & event)
 {
 	BEGIN_INTERACTION(this);
-	if (!enabled) { INTERACTION_RETURN; }
+	if (!enabled) { INTERACTION_RETURN(); }
 
 	bool empty = events.empty();
 	events.push_front(event);
@@ -457,7 +464,7 @@ Game::PositionTree::~PositionTree()
 	delete[] node_bounds_y;
 }
 
-int Game::PositionTree::get_index(std::pair<float, float>* bounds_array, float pos, size_t a, size_t b)
+int Game::PositionTree::get_index(std::pair<float, float>* bounds_array, float pos, int a, int b)
 {
 	if (a >= b)
 	{
@@ -467,7 +474,7 @@ int Game::PositionTree::get_index(std::pair<float, float>* bounds_array, float p
 			return a;
 	}
 
-	size_t m = (a + b) / 2;
+	int m = (a + b) / 2;
 
 	if (pos < bounds_array[m].first)
 		return get_index(bounds_array, pos, a, m - 1);

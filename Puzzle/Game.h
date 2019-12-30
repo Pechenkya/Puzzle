@@ -4,16 +4,12 @@
 #include <array>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
-#include <SFML/Graphics/Color.hpp>
-#include "ExpressionParser.h"
 
-//class expression_tree;
-
+//Predeclaration
 namespace std
 {
 	class mutex;
 }
-
 namespace sf
 {
 	class RectangleShape;
@@ -28,6 +24,7 @@ namespace sf
 		class T2
 	> struct pair;
 }
+//
 
 class Game
 {
@@ -119,29 +116,38 @@ class Game
 	private:
 		std::pair<float, float>* node_bounds_x;
 		std::pair<float, float>* node_bounds_y;
-		int get_index(std::pair<float, float>* bounds_array, float pos, size_t a = 0, size_t b = side_length - 1);
+		int get_index(std::pair<float, float>* bounds_array, float pos, int a = 0, int b = side_length - 1);
 	};
 
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
 
+	//Computer control
+	
+	void move(size_t i, size_t j);
+	// TODO get_table()
+	// TODO bool solved() ?
+	//
+
 private:
 	//Base game propeties
 	static const float window_width;
 	static const float window_height;
 	static size_t side_length;
-	static Node*** table; // I tut ya zvezdanulsya
 	//
 
-	//Drawing thread values
+	static Node*** table; // I tut ya zvezdanulsya
+
+	//Drawing thread resources
 	static sf::Font FONT;
 	static sf::RenderWindow* window;
-	static void draw_process();
 	static PositionTree* pos_tree;
 	static EventQueue* mouse_move_events;
 	static EventQueue* mouse_click_events;
 	static AdjacentSet* empty_adjacent;
+
+	static void draw_process(); //separate thread
 	//
 
 	//Node
@@ -151,7 +157,7 @@ private:
 	//
 
 	//Puzzle movement
-	static void click_process();
+	static void click_process(); //separate thread
 	//
 };
 
