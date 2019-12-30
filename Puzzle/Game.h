@@ -31,8 +31,6 @@ namespace sf
 
 class Game
 {
-	static std::mutex* th_mutex;
-
 	struct Node
 	{
 	private:

@@ -10,6 +10,7 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
+#include "integration.h"
 #include <cmath>
 
 #define BEGIN_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.lock()
@@ -28,10 +29,9 @@ const sf::Color AVAILABILITY_COLOR = sf::Color::Blue;
 float OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
 
-float K = 100.f;
+const float cant_move_animation_time = 0.2f;
+const float animation_time = 0.4f;
 //
-
-std::mutex* Game::th_mutex = new std::mutex;
 
 Game::EventQueue* Game::mouse_move_events = nullptr;
 Game::EventQueue* Game::mouse_click_events = nullptr;
@@ -92,12 +92,10 @@ void Game::Node::try_move()
 	for (Node* t : get_adjacent())
 	{
 		t->rectangle->setOutlineThickness(0.f);
+		t->rectangle->setOutlineColor(OUTLINE_COLOR);
 
 		if (this == t)
-		{
 			is_adjacent = true;
-			break;
-		}
 	}
 	Node* prev_node = this;
 
@@ -111,9 +109,13 @@ void Game::Node::try_move()
 	{
 		BEGIN_INTERACTION(t);
 		t->rectangle->setOutlineColor(AVAILABILITY_COLOR);
-		rectangle->setOutlineThickness(OUTLINE_THICKNESS);
+		t->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
 		END_INTERACTION(t);
 	}
+
+	BEGIN_INTERACTION(prev_node);
+	prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
+	END_INTERACTION(prev_node);
 }
 
 void Game::Node::select()
@@ -215,20 +217,27 @@ void Game::Node::initialize_nodes()
 	empty_node = table[side_length - 1][side_length - 1];
 
 	//Animations
-	animations[1][1] = new Animation("t*cos(50*t)", "t*cos(50*t)", -0.5f, 0.5f);
-	float s = node_size + offset;
+	float shift1 = offset / 3.f;
+	float a1 = (64.f*shift1) / (pow(cant_move_animation_time, 3));
+	float b1 = (-1.f*a1) * cant_move_animation_time;
+	float c1 = (32.f * shift1) / (3.f * cant_move_animation_time);
 
-	float a = 0.4f;
-	float b = 0.45f;
 
-	float k = ((2 / (a * b - a * a)) * (s + (offset / 3) - (a / b)*s));
-	float v0 = s / b + (k * b) / 2;
-	std::string move_equation = "-" + std::to_string(k) + "*t+" + std::to_string(v0);
+	std::string move_equation = "t^2*(" + std::to_string(a1) + ")+t*(" + std::to_string(b1) + ")+(" + std::to_string(c1) + ")";
+	animations[1][1] = new Animation(move_equation, "0", 0.f, cant_move_animation_time);
 
-	animations[1][2] = new Animation("0", move_equation, 0.f, 0.45f);
-	animations[2][1] = new Animation(move_equation, "0", 0.f, 0.45f);
-	animations[1][0] = new Animation("0", "-1*(" + move_equation + ")", 0.f, 0.45f);
-	animations[0][1] = new Animation("-1*(" + move_equation + ")", "0", 0.f, 0.45f);
+	float shift = node_size + offset;
+	
+	float a = 0.9f * animation_time;
+	float k = ((2 / (a * animation_time - a * a)) * (shift + (offset / 3) - (a / animation_time)*shift));  //Zvezdanut'sya mojno
+	float v0 = shift / animation_time + (k * animation_time) / 2;
+
+	move_equation = "-" + std::to_string(k) + "*t+" + std::to_string(v0);
+
+	animations[1][2] = new Animation("0", move_equation, 0.f, animation_time);
+	animations[2][1] = new Animation(move_equation, "0", 0.f, animation_time);
+	animations[1][0] = new Animation("0", "-1*(" + move_equation + ")", 0.f, animation_time);
+	animations[0][1] = new Animation("-1*(" + move_equation + ")", "0", 0.f, animation_time);
 	//
 }
 
@@ -341,9 +350,15 @@ void Game::click_process()
 		if (node && node != empty_node)
 		{
 			mouse_click_events->disable();
-			th_mutex->lock();
+			mouse_move_events->disable();
 			node->try_move();
-			th_mutex->unlock();
+			mouse_move_events->enable();
+
+			sf::Event e;
+			e.mouseMove.x = sf::Mouse::getPosition().x;
+			e.mouseMove.y = sf::Mouse::getPosition().y;
+			mouse_move_events->push(e);
+
 			mouse_click_events->enable();
 		}
 	}
@@ -387,6 +402,7 @@ void Game::EventQueue::push(const sf::Event & event)
 void Game::EventQueue::disable()
 {
 	enabled = false;
+	events.clear();
 }
 
 void Game::EventQueue::enable()
