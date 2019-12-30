@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <deque>
+#include <array>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
 #include <SFML/Graphics/Color.hpp>
@@ -37,13 +38,16 @@ class Game
 	private:
 		struct Animation
 		{
+			static const float one_step_t;
+
 			Animation(std::string expr_x, std::string expr_y, float t1, float t2);
 			std::pair<sf::Vector2f, float>* movement_table;
-			size_t step_count;
+			const size_t step_count;
 		};
 
 		sf::RectangleShape* rectangle;
 		sf::Text* text;
+		mutable std::mutex interaction_mutex;
 
 		void play_animation(const Animation& animation);
 		Node* swap_with_empty();
@@ -57,13 +61,15 @@ class Game
 		const sf::Vector2f position;
 		const sf::Vector2f text_position;
 		const size_t i, j;
+
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
 		void try_move();
 		void select();
-		static void initialize_nodes();
 		void draw(sf::RenderWindow& window) const;
+
+		static void initialize_nodes();
 	};
 
 	struct EventQueue
@@ -82,6 +88,31 @@ class Game
 		std::unique_lock<std::mutex> ql{ qm, std::defer_lock };
 	};
 
+	struct AdjacentSet
+	{
+		struct AdjItr
+		{
+			inline AdjItr(AdjacentSet* c, size_t _i);
+
+			inline AdjItr& operator++();
+			inline bool operator!=(const AdjItr& a);
+			inline Node* operator*();
+		private:
+			size_t i;
+			AdjacentSet* container;
+		};
+
+		void add(Node* n);
+		void clear();
+
+		AdjItr begin();
+		AdjItr end();
+
+	private:
+		size_t index{ 0 };
+		std::array<Node*, 4> arr;
+	};
+
 	struct PositionTree
 	{
 		Node* match(float x, float y);
@@ -96,8 +127,6 @@ class Game
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
-	
-
 
 private:
 	//Base game propeties
@@ -107,11 +136,6 @@ private:
 	static Node*** table; // I tut ya zvezdanulsya
 	//
 
-	// TEST
-	static long long int check_counter;
-
-	//
-
 	//Drawing thread values
 	static sf::Font FONT;
 	static sf::RenderWindow* window;
@@ -119,15 +143,16 @@ private:
 	static PositionTree* pos_tree;
 	static EventQueue* mouse_move_events;
 	static EventQueue* mouse_click_events;
+	static AdjacentSet* empty_adjacent;
 	//
 
 	//Node
-	static std::vector<Node*> get_adjacent(const Node* this_node);
+	static void update_empty_adj();
+	static Game::AdjacentSet& get_adjacent();
 	static Node* empty_node;
 	//
 
 	//Puzzle movement
-	static std::mutex interaction_mutex;
 	static void click_process();
 	//
 };

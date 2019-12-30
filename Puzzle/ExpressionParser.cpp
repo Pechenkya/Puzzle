@@ -94,7 +94,7 @@ operation_t* expression_tree::parse_func(std::string token)
 
 	op_t type = get_func_type(token.substr(0, 3));
 
-	if (token.size() < 6 && type == op_t::num)
+	if (token.size() < 6 || type == op_t::num)
 	{
 		double a = std::stod(token);
 		return new operation_t([a](const operands&) { return a; });
