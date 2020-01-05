@@ -64,7 +64,10 @@ class Game
 		void select();
 		void draw(sf::RenderWindow& window) const;
 
+		void set_default_outline();
+
 		static void initialize_nodes();
+		static void reset_nodes();
 	};
 
 	struct EventQueue
@@ -119,13 +122,45 @@ class Game
 		int get_index(std::pair<float, float>* bounds_array, float pos, int a = 0, int b = side_length - 1);
 	};
 
+	struct Button
+	{
+	private:
+		sf::RectangleShape* rectangle;
+		sf::Text* text;
+		mutable std::mutex interaction_mutex;
+		bool pressed = false;
+	public:
+		bool visible = true;
+
+		std::mutex press_mutex;
+		std::unique_lock<std::mutex> press_lock{ press_mutex, std::defer_lock };
+		std::condition_variable press_condition;
+
+		Button(float button_size, sf::Vector2f pos, std::string lable);
+
+		const sf::Vector2f position;
+		const sf::Vector2f text_position;
+		void draw(sf::RenderWindow& window) const;
+
+		void select();
+		bool contains(const float& pos_x, const float& pos_y) const;
+		void set_pressed();
+		void set_unpressed();
+		bool is_pressed();
+
+	
+	};
+
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
 
+	
+	static void solve_game();
+
 	//Computer control
 	
-	void move(size_t i, size_t j);
+	static void move(size_t i, size_t j);
 	// TODO get_table()
 	// TODO bool solved() ?
 	//
@@ -135,6 +170,8 @@ private:
 	static const float window_width;
 	static const float window_height;
 	static size_t side_length;
+
+	static int score_counter;
 	//
 
 	static Node*** table; // I tut ya zvezdanulsya
@@ -158,6 +195,18 @@ private:
 
 	//Puzzle movement
 	static void click_process(); //separate thread
+	//
+
+	//UI
+	static void initialize_buttons();
+	static Button* ready_button;
+	static Button* reset_button;
+	static Button* buttons[2];
+
+	static bool check_buttons(const sf::Event& event);
+	static void set_buttons_invisible();
+
+	static void reset();
 	//
 };
 

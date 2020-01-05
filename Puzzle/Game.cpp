@@ -1,10 +1,11 @@
-#include "Game.h"
+﻿#include "Game.h"
 #include "ExpressionParser.h"
 
 #include <algorithm>
 #include <iostream>
 #include <utility>
 #include <cmath>
+#include <thread>
 
 #include <SFML/System/String.hpp>
 #include <SFML/Graphics/Font.hpp>
@@ -28,7 +29,8 @@ const sf::Color NODE_COLOR = sf::Color(211, 211, 211);
 const sf::Color OUTLINE_COLOR = sf::Color::White;
 const sf::Color AVAILABILITY_COLOR = sf::Color(255, 173, 51);
 
-float OUTLINE_THICKNESS = 5.f;
+float OUTLINE_THICKNESS = 5.f; 
+float BUTTON_OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
 
 const float cant_move_animation_time = 0.2f;
@@ -43,6 +45,8 @@ Game::AdjacentSet* Game::empty_adjacent = nullptr;
 
 const float Game::Node::Animation::one_step_t = 0.008f;
 const Game::Node::Animation* Game::Node::animations[3][3] = { nullptr };
+
+int Game::score_counter = 0;
 //
 
 //Table parameters
@@ -55,6 +59,12 @@ Game::Node* Game::empty_node = nullptr;
 const float Game::window_height = 720;
 const float Game::window_width = 1280;
 sf::RenderWindow* Game::window;
+//
+
+//UI
+Game::Button* Game::ready_button = nullptr;
+Game::Button* Game::reset_button = nullptr;
+Game::Button* Game::buttons[2] = { nullptr };
 //
 
 Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, 
@@ -259,6 +269,49 @@ void Game::Node::initialize_nodes()
 	}
 }
 
+void Game::Node::reset_nodes()
+{
+	float table_side_size = std::min(window_height, window_width);
+	float node_size = (table_side_size * 0.8 * 0.875) / side_length;
+	for (int k = 0; k < side_length * side_length - 1; k++)
+	{
+		Node* n = table[k % side_length][k / side_length];
+		BEGIN_INTERACTION(n);
+		delete n->text;
+		n->text = new sf::Text(sf::String(std::to_string(k + 1)), FONT);
+		n->text->setPosition(n->text_position);
+		n->text->setCharacterSize(static_cast<int>(node_size / 3));
+		n->text->setFillColor(BG_COLOR);
+		delete n->rectangle;
+		n->rectangle = new sf::RectangleShape(sf::Vector2f(node_size, node_size));
+		n->rectangle->setPosition(n->position);
+		n->rectangle->setFillColor(NODE_COLOR);
+		n->rectangle->setOutlineColor(OUTLINE_COLOR);
+		n->rectangle->setOutlineThickness(0.f);
+		n->value = k + 1;
+		END_INTERACTION(n);
+	}
+
+	Node* n = table[side_length - 1][side_length - 1];
+	BEGIN_INTERACTION(n);
+	delete n->rectangle;
+	n->rectangle = nullptr;
+	delete n->text;
+	n->text = nullptr;
+	n->value = side_length * side_length;
+	END_INTERACTION(n);
+	empty_node = n;
+
+	update_empty_adj();
+	for (Node* t : get_adjacent())
+	{
+		BEGIN_INTERACTION(t);
+		t->rectangle->setOutlineColor(AVAILABILITY_COLOR);
+		t->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
+		END_INTERACTION(t);
+	}
+}
+
 bool Game::Node::contains(const float& pos_x, const float& pos_y) const
 {
 	return !((pos_x > rectangle->getPosition().x + rectangle->getSize().x || pos_x < rectangle->getPosition().x)
@@ -278,6 +331,12 @@ void Game::Node::draw(sf::RenderWindow & window) const
 	END_INTERACTION(this);
 }
 
+void Game::Node::set_default_outline()
+{
+	rectangle->setOutlineThickness(0.f);
+	rectangle->setOutlineColor(OUTLINE_COLOR);
+}
+
 void Game::initialize_game(size_t sl)
 {
 	window = new sf::RenderWindow(sf::VideoMode(window_width, window_height), "Puzzle", sf::Style::Titlebar | sf::Style::Close);
@@ -289,6 +348,8 @@ void Game::initialize_game(size_t sl)
 	empty_adjacent = new AdjacentSet();
 	Node::initialize_nodes();
 	pos_tree = new PositionTree();
+
+	initialize_buttons();
 }
 
 void Game::draw_process()
@@ -296,6 +357,9 @@ void Game::draw_process()
 	while (window->isOpen())
 	{
 		const sf::Event& e = mouse_move_events->pop();
+
+		if (check_buttons(e))
+			continue;
 
 		Node* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
 		if (node && node != empty_node)
@@ -305,9 +369,9 @@ void Game::draw_process()
 
 bool Game::start_game()
 {
+	std::thread solve_thread(solve_game);
 	std::thread draw_thread(draw_process);
 	std::thread click_thread(click_process);
-
 	while (window->isOpen())
 	{
 		sf::Event event;
@@ -320,17 +384,52 @@ bool Game::start_game()
 			else if (event.type == sf::Event::MouseButtonPressed)
 				mouse_click_events->push(event);
 		}
+
+		if (reset_button->is_pressed() && reset_button->visible)
+		{
+			reset_button->set_unpressed();
+			reset();
+		}
+
+		if (ready_button->is_pressed() && ready_button->visible)
+		{
+			set_buttons_invisible();
+			mouse_click_events->disable();
+			mouse_move_events->disable();
+		}
+
 		window->clear();
 
 		for (int k = 0; k < side_length * side_length; k++)
 			table[k % side_length][k / side_length]->draw(*window);
 
+		for (auto t : buttons)
+			t->draw(*window);
+
 		window->display();
 	}
-
-	draw_thread.join();
-	click_thread.join();
+	solve_thread.detach();
+	draw_thread.detach();
+	click_thread.detach();
 	return true;
+}
+
+void Game::solve_game()
+{
+	ready_button->press_lock.lock();
+	ready_button->press_condition.wait(ready_button->press_lock);
+	std::cout << "Now we solve!";
+	window->close();
+}
+
+void Game::move(size_t i, size_t j)
+{
+	if (table[i][j] != empty_node)
+	{
+		table[i][j]->try_move();
+		if (table[i][j] != empty_node)
+			table[i][j]->set_default_outline();
+	}
 }
 
 void Game::update_empty_adj()
@@ -360,6 +459,13 @@ void Game::click_process()
 	while (window->isOpen())
 	{
 		const sf::Event& e = mouse_click_events->pop();
+		for (Button* t : buttons)
+			if (t->contains(e.mouseButton.x, e.mouseButton.y))
+			{
+				t->set_pressed();
+				break;
+			}
+
 		Node* node = pos_tree->match(e.mouseButton.x, e.mouseButton.y);
 
 		if (node && node != empty_node)
@@ -378,6 +484,66 @@ void Game::click_process()
 			mouse_click_events->enable();
 		}
 	}
+}
+
+void Game::initialize_buttons()
+{
+	float table_side_size = std::min(window_height, window_width);
+	float padding = (std::max(window_height, window_width) - table_side_size) / 2;
+	float button_size = table_side_size * 0.075;
+	BUTTON_OUTLINE_THICKNESS = table_side_size * 0.005;
+
+	sf::Vector2f button_position;
+	if (window_height < window_width)
+	{
+		button_position.x = padding + table_side_size - table_side_size * 0.0875;
+		button_position.y = table_side_size * 0.5 - table_side_size * 0.0375;
+	}
+	else
+	{
+		button_position.x = table_side_size * 0.5 - table_side_size * 0.0375;
+		button_position.y = padding + table_side_size - table_side_size * 0.0875;
+	}
+
+	ready_button = new Button(button_size, button_position, "S"); //S means Solve
+	buttons[0] = ready_button;
+
+	if (window_height < window_width)
+	{
+		button_position.x = padding + table_side_size * 0.0125;
+		button_position.y = table_side_size * 0.5 - table_side_size * 0.0375;
+	}
+	else
+	{
+		button_position.x = table_side_size * 0.5 - table_side_size * 0.0375;
+		button_position.y = padding + table_side_size * 0.0125;
+	}
+
+	reset_button = new Button(button_size, button_position, "R"); //R means Reset
+	buttons[1] = reset_button;
+}
+
+bool Game::check_buttons(const sf::Event& event)
+{
+	for (Button* t : buttons)
+		if (t->contains(event.mouseMove.x, event.mouseMove.y))
+		{
+			t->select();
+			return true;
+		}
+	return false;
+}
+
+void Game::set_buttons_invisible()
+{
+	for(Button* b: buttons)
+		b->visible = false;
+}
+
+void Game::reset()
+{
+	score_counter = 0;
+	Node::reset_nodes();
 }
 
 sf::Event Game::EventQueue::pop()
@@ -533,4 +699,101 @@ bool Game::AdjacentSet::AdjItr::operator!=(const AdjItr& a)
 inline Game::Node* Game::AdjacentSet::AdjItr::operator*()
 {
 	return container->arr.at(i);
+}
+
+Game::Button::Button(float button_size, sf::Vector2f pos, std::string lable)
+	: position{ pos }, text_position{ sf::Vector2f(pos.x + button_size / 3, pos.y + button_size / 3) }
+{
+	{
+		rectangle = new sf::RectangleShape(sf::Vector2f(button_size, button_size));
+		rectangle->setPosition(pos);
+		rectangle->setFillColor(NODE_COLOR);
+		rectangle->setOutlineColor(OUTLINE_COLOR);
+		rectangle->setOutlineThickness(0.f);
+		text = new sf::Text(sf::String(lable), FONT);
+		text->setPosition(text_position);
+		text->setCharacterSize(static_cast<int>(button_size / 3));
+		text->setFillColor(BG_COLOR);
+	}
+}
+
+void Game::Button::draw(sf::RenderWindow & window) const
+{
+	if (!visible)
+		return;
+
+	BEGIN_INTERACTION(this);
+
+	if (rectangle && text)
+	{
+		window.draw(*rectangle);
+		window.draw(*text);
+	}
+
+	END_INTERACTION(this);
+}
+
+void Game::Button::select()
+{
+	BEGIN_INTERACTION(this);
+	sf::Color default_color = rectangle->getOutlineColor();
+	float default_thickness = rectangle->getOutlineThickness();
+	sf::RectangleShape* rect = rectangle;
+
+	rect->setOutlineColor(OUTLINE_COLOR);
+	rect->setOutlineThickness(BUTTON_OUTLINE_THICKNESS);
+	END_INTERACTION(this);
+
+
+	while (window->isOpen())
+	{
+		const sf::Event& e = mouse_move_events->pop();
+
+		BEGIN_INTERACTION(this);
+
+		if (!contains(e.mouseMove.x, e.mouseMove.y))
+		{
+			END_INTERACTION(this);
+			break;
+		}
+
+		END_INTERACTION(this);
+	}
+
+	BEGIN_INTERACTION(this);
+	rect->setOutlineColor(default_color);
+	rect->setOutlineThickness(default_thickness);
+	END_INTERACTION(this);
+}
+
+bool Game::Button::contains(const float & pos_x, const float & pos_y) const
+{
+	return !((pos_x > rectangle->getPosition().x + rectangle->getSize().x || pos_x < rectangle->getPosition().x)
+		|| (pos_y > rectangle->getPosition().y + rectangle->getSize().y || pos_y < rectangle->getPosition().y));
+}
+
+void Game::Button::set_pressed()
+{
+	if (pressed || !visible)
+		return;
+
+	pressed = true;
+	BEGIN_INTERACTION(this);
+	rectangle->setOutlineThickness(0.f);
+	END_INTERACTION(this);
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	BEGIN_INTERACTION(this);
+	rectangle->setOutlineThickness(BUTTON_OUTLINE_THICKNESS);
+	END_INTERACTION(this);
+	press_condition.notify_one();
+}
+
+void Game::Button::set_unpressed()
+{
+	pressed = false();
+}
+
+bool Game::Button::is_pressed()
+{
+	return pressed;
 }

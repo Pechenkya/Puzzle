@@ -5,7 +5,7 @@
 
 int main()
 {
-	Game::initialize_game();
+	Game::initialize_game(6);
 	Game::start_game();
 	return 0;
 }
