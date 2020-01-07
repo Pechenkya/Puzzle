@@ -5,6 +5,8 @@
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
 
+#include "Solver.h"
+
 //Predeclaration
 namespace std
 {
@@ -207,6 +209,10 @@ private:
 	static void set_buttons_invisible();
 
 	static void reset();
+	//
+
+	//Solver help methods
+	static int** represent_to_int();
 	//
 };
 

@@ -385,14 +385,15 @@ bool Game::start_game()
 				mouse_click_events->push(event);
 		}
 
-		if (reset_button->is_pressed() && reset_button->visible)
+		if (reset_button->is_pressed())
 		{
 			reset_button->set_unpressed();
 			reset();
 		}
 
-		if (ready_button->is_pressed() && ready_button->visible)
+		if (ready_button->is_pressed())
 		{
+			ready_button->set_unpressed();
 			set_buttons_invisible();
 			mouse_click_events->disable();
 			mouse_move_events->disable();
@@ -418,8 +419,14 @@ void Game::solve_game()
 {
 	ready_button->press_lock.lock();
 	ready_button->press_condition.wait(ready_button->press_lock);
-	std::cout << "Now we solve!";
-	window->close();
+	std::cout << "Now we solve!" << std::endl;
+	int** int_table = represent_to_int();
+	Solver solver(int_table, side_length);
+	solver.solve();
+	std::vector<std::pair<int, int>> interation_nodes = solver.solution();
+	for (auto t : interation_nodes)
+		move(t.first, t.second);
+	//window->close();
 }
 
 void Game::move(size_t i, size_t j)
@@ -544,6 +551,19 @@ void Game::reset()
 {
 	score_counter = 0;
 	Node::reset_nodes();
+}
+
+int** Game::represent_to_int()
+{
+	int** int_table = new int*[side_length];
+	for (int i = 0; i < side_length; i++)
+		int_table[i] = new int[side_length];
+
+	for (int j = 0; j < side_length; j++)
+		for (int i = 0; i < side_length; i++)
+			int_table[i][j] = table[i][j]->value;
+
+	return int_table;
 }
 
 sf::Event Game::EventQueue::pop()
@@ -790,7 +810,7 @@ void Game::Button::set_pressed()
 
 void Game::Button::set_unpressed()
 {
-	pressed = false();
+	pressed = false;
 }
 
 bool Game::Button::is_pressed()
