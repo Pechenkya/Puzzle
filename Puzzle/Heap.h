@@ -4,7 +4,7 @@
 #include <iterator>
 
 template<typename T>
-class Heap
+class PQueue
 {
 private:
 	std::vector<T*> heap;
@@ -20,7 +20,9 @@ private:
 public:
 	struct HeapItr;
 
-	void insert(T elem);
+	void insert(const T& elem);
+	void insert(T* elem);
+
 
 	template<typename... Args>
 	void emplace(Args&&... args);
@@ -32,19 +34,19 @@ public:
 	template<typename Container>
 	void fill(Container list);
 
-	T remove_min();
+	T* remove_min();
 
 	HeapItr begin();
 	HeapItr end();
 	const HeapItr const_begin();
 	const HeapItr const_end();
 
-	Heap();
-	~Heap();
+	PQueue();
+	~PQueue();
 };
 
 template<typename T>
-struct Heap<T>::HeapItr
+struct PQueue<T>::HeapItr
 {
 public:
 	T** this_node = nullptr;
@@ -64,99 +66,99 @@ public:
 };
 
 template<typename T>
-Heap<T>::HeapItr::HeapItr(T* &new_node)
+PQueue<T>::HeapItr::HeapItr(T* &new_node)
 {
 	this_node = &new_node;
 }
 
 template<typename T>
-typename Heap<T>::HeapItr& Heap<T>::HeapItr::operator++()
+typename PQueue<T>::HeapItr& PQueue<T>::HeapItr::operator++()
 {
 	this->this_node = ++this->this_node;
 	return *this;
 }
 
 template<typename T>
-typename Heap<T>::HeapItr& Heap<T>::HeapItr::operator++(int)
+typename PQueue<T>::HeapItr& PQueue<T>::HeapItr::operator++(int)
 {
 	this->this_node = ++this->this_node;
 	return *this;
 }
 
 template<typename T>
-typename Heap<T>::HeapItr& Heap<T>::HeapItr::operator--()
+typename PQueue<T>::HeapItr& PQueue<T>::HeapItr::operator--()
 {
 	this->this_node = --this->this_node;
 	return *this;
 }
 
 template<typename T>
-typename Heap<T>::HeapItr& Heap<T>::HeapItr::operator--(int)
+typename PQueue<T>::HeapItr& PQueue<T>::HeapItr::operator--(int)
 {
 	this->this_node = --this->this_node;
 	return *this;
 }
 
 template<typename T>
-typename Heap<T>::HeapItr Heap<T>::HeapItr::operator+(int num)
+typename PQueue<T>::HeapItr PQueue<T>::HeapItr::operator+(int num)
 {
 	return HeapItr(*(this->this_node + num));
 }
 
 template<typename T>
-bool Heap<T>::HeapItr::operator==(const Heap<T>::HeapItr& obj)
+bool PQueue<T>::HeapItr::operator==(const PQueue<T>::HeapItr& obj)
 {
 	return *this->this_node == *obj.this_node;
 }
 
 template<typename T>
-bool Heap<T>::HeapItr::operator!=(const Heap<T>::HeapItr& obj)
+bool PQueue<T>::HeapItr::operator!=(const PQueue<T>::HeapItr& obj)
 {
 	return !(*this == obj);
 }
 
 template<typename T>
-T& Heap<T>::HeapItr::operator*()
+T& PQueue<T>::HeapItr::operator*()
 {
 	return *(*this_node);
 }
 
 template<typename T>
-typename Heap<T>::HeapItr Heap<T>::Heap::begin()
+typename PQueue<T>::HeapItr PQueue<T>::PQueue::begin()
 {
-	return Heap<T>::HeapItr(this->heap[1]);
+	return PQueue<T>::HeapItr(this->heap[1]);
 }
 
 template<typename T>
-typename Heap<T>::HeapItr Heap<T>::end()
+typename PQueue<T>::HeapItr PQueue<T>::end()
 {
-	Heap<T>::HeapItr temp_itr = Heap<T>::HeapItr(this->heap[size]);
+	PQueue<T>::HeapItr temp_itr = PQueue<T>::HeapItr(this->heap[size]);
 	//++temp_itr;
 	return temp_itr;
 }
 
 template<typename T>
-const typename Heap<T>::HeapItr Heap<T>::const_begin()
+const typename PQueue<T>::HeapItr PQueue<T>::const_begin()
 {
-	return Heap<T>::HeapItr(this->heap[1]);
+	return PQueue<T>::HeapItr(this->heap[1]);
 }
 
 template<typename T>
-const typename Heap<T>::HeapItr Heap<T>::const_end()
+const typename PQueue<T>::HeapItr PQueue<T>::const_end()
 {
-	Heap<T>::HeapItr temp_itr = Heap<T>::HeapItr(this->heap[size]);
+	PQueue<T>::HeapItr temp_itr = PQueue<T>::HeapItr(this->heap[size]);
 	++temp_itr;
 	return temp_itr;
 }
 
 template<typename T>
-bool Heap<T>::is_empty()
+bool PQueue<T>::is_empty()
 {
 	return this->heap.size() == 1;
 }
 
 template<typename T>
-void Heap<T>::swim(int k)
+void PQueue<T>::swim(int k)
 {
 	while (k > 1 && !less(k / 2, k))
 	{
@@ -167,7 +169,7 @@ void Heap<T>::swim(int k)
 
 template<typename T>
 template<typename Container>
-void Heap<T>::fill(Container list)
+void PQueue<T>::fill(Container list)
 {
 	for (auto t : list)
 	{
@@ -176,7 +178,7 @@ void Heap<T>::fill(Container list)
 }
 
 template<typename T>
-void Heap<T>::sink(int k)
+void PQueue<T>::sink(int k)
 {
 	while (k * 2 <= size)
 	{
@@ -190,7 +192,7 @@ void Heap<T>::sink(int k)
 }
 
 template<typename T>
-void Heap<T>::exch(int a, int b)
+void PQueue<T>::exch(int a, int b)
 {
 	T* temp = this->heap[a];
 	this->heap[a] = this->heap[b];
@@ -198,13 +200,13 @@ void Heap<T>::exch(int a, int b)
 }
 
 template<typename T>
-bool Heap<T>::less(int a, int b)
+bool PQueue<T>::less(int a, int b)
 {
 	return *(this->heap[a]) < *(this->heap[b]);
 }
 
 template<typename T>
-void Heap<T>::insert(T elem)
+void PQueue<T>::insert(const T& elem)
 {
 	if (this->size < this->heap.size() - 1)
 	{
@@ -221,8 +223,25 @@ void Heap<T>::insert(T elem)
 }
 
 template<typename T>
+void PQueue<T>::insert(T* elem)
+{
+	if (this->size < this->heap.size() - 1)
+	{
+		heap[++size] = elem;
+		swim(size);
+	}
+	else
+	{
+		heap.push_back(elem);
+		++size;
+		swim(size);
+	}
+
+}
+
+template<typename T>
 template<typename... Args>
-void Heap<T>::emplace(Args&&... args)
+void PQueue<T>::emplace(Args&&... args)
 {
 	if (this->size < this->heap.size() - 1)
 	{
@@ -239,7 +258,7 @@ void Heap<T>::emplace(Args&&... args)
 }
 
 template<typename T>
-std::vector<T> Heap<T>::return_heap()
+std::vector<T> PQueue<T>::return_heap()
 {
 	std::vector<T> temp;
 	for (int i = 1; i <= this->size; i++)
@@ -250,7 +269,7 @@ std::vector<T> Heap<T>::return_heap()
 }
 
 template<typename T>
-std::vector <T> Heap<T>::return_sorted_heap()
+std::vector <T> PQueue<T>::return_sorted_heap()
 {
 	std::vector <T> temp;
 	for (int i = 1; i <= this->size;)
@@ -267,7 +286,7 @@ std::vector <T> Heap<T>::return_sorted_heap()
 }
 
 template<typename T>
-std::vector<T> Heap<T>::remove_elements()
+std::vector<T> PQueue<T>::remove_elements()
 {
 	std::vector <T> temp;
 	for (int i = 1; i <= this->size;)
@@ -280,26 +299,24 @@ std::vector<T> Heap<T>::remove_elements()
 
 
 template<typename T>
-T Heap<T>::remove_min()
+T* PQueue<T>::remove_min()
 {
-	T max = *(heap[1]);
+	T* min = heap[1];
 	exch(1, size--);
 	sink(1);
-	delete heap[size + 1];
-	heap[size + 1] = nullptr;
 	heap.pop_back();
-	return max;
+	return min;
 }
 
 template<typename T>
-Heap<T>::Heap()
+PQueue<T>::PQueue()
 {
 	heap.push_back(nullptr);
 	size = 0;
 }
 
 template<typename T>
-Heap<T>::~Heap()
+PQueue<T>::~PQueue()
 {
 	for (auto t : heap)
 	{

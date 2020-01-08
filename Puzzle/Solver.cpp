@@ -2,96 +2,29 @@
 #include <math.h>
 #include <utility>
 
-//List Iterator
-template<typename T>
-Solver::NeighborList<T>::ListItr::ListItr(T ** obj)
+Solver::Board::~Board()
 {
-	current = obj;
-};
 
-template<typename T>
-typename Solver::NeighborList<T>::ListItr& Solver::NeighborList<T>::ListItr::operator++()
-{
-	current = current + 1;
-	return *this;
-};
-
-template<typename T>
-typename Solver::NeighborList<T>::ListItr& Solver::NeighborList<T>::ListItr::operator++(int)
-{
-	current = current + 1;
-	return *this;
-};
-
-template<typename T>
-T& Solver::NeighborList<T>::ListItr::operator*()
-{
-	return **current;
-}
-
-template<typename T>
-bool Solver::NeighborList<T>::ListItr::operator==(const ListItr & obj)
-{
-	return this->current == obj.current;
-}
-//
-
-
-
-//Neighbour List
-template<typename T>
-Solver::NeighborList<T>::NeighborList()
-{
-	size = 0;
-};
-
-template<typename T>
-Solver::NeighborList<T>::NeighborList(NeighborList && obj)
-{
-	this->size = obj.size;
-	for (int i = 0; i < size; i++)
+	if (titles)
 	{
-		this->neighbour_list[i] = obj.neighbour_list[i];
-		obj.neighbour_list[i] = nullptr;
+		for (int i = 0; i < dimension; i++)
+			delete[] titles[i];
+		delete[] titles;
 	}
-}
 
-template<typename T>
-Solver::NeighborList<T>::~NeighborList()
-{
-	for (int i = 0; i < 4; i++)
-		delete neighbour_list[i];
-}
+	//if (prev_board)
+	//	delete prev_board;
 
-template<typename T>
-int Solver::NeighborList<T>::get_size()
-{
-	return this->size;
 }
-
-template<typename T>
-void Solver::NeighborList<T>::add_neighbour(T obj)
-{
-	this->neighbour_list[size++] = new T(obj);
-}
-
-template<typename T>
-typename Solver::NeighborList<T>::ListItr Solver::NeighborList<T>::begin()
-{
-	return ListItr(&neighbour_list[0]);
-}
-
-template<typename T>
-typename Solver::NeighborList<T>::ListItr Solver::NeighborList<T>::end()
-{
-	return ListItr(&neighbour_list + size);
-}
-//
-
-Solver::Board::Board(){};
 
 //Board
-Solver::Board::Board(int ** _titles, int _dimention)
+Solver::Board::Board()
+{
+	titles = nullptr;
+	prev_board = nullptr;
+};
+
+Solver::Board::Board(int ** _titles, short unsigned int _dimention)
 	: titles{ _titles }, dimension{ _dimention }
 {
 	prev_board = nullptr;
@@ -103,7 +36,8 @@ Solver::Board::Board(int ** _titles, int _dimention)
 			empty_node_y = k / dimension;
 			break;
 		}
-		
+
+	manhattan_score = this->manhattan();		
 };
 
 Solver::Board& Solver::Board::operator=(const Board & obj)
@@ -118,9 +52,26 @@ Solver::Board& Solver::Board::operator=(const Board & obj)
 			this->titles[i][j] = obj.titles[i][j];
 
 	this->prev_board = obj.prev_board;
+
 	this->moves_made = obj.moves_made;
 	this->empty_node_x = obj.empty_node_x;
 	this->empty_node_y = obj.empty_node_y;
+	this->manhattan_score = obj.manhattan_score;
+	return *this;
+}
+
+Solver::Board& Solver::Board::operator=(Board && obj)
+{
+	this->dimension = obj.dimension;
+	titles = obj.titles;
+	obj.titles = nullptr;
+	this->prev_board = obj.prev_board;
+	obj.prev_board = nullptr;
+	this->moves_made = obj.moves_made;
+	this->empty_node_x = obj.empty_node_x;
+	this->empty_node_y = obj.empty_node_y;
+	this->manhattan_score = obj.manhattan_score;
+
 	return *this;
 }
 
@@ -136,12 +87,30 @@ Solver::Board::Board(const Board & obj)
 			this->titles[i][j] = obj.titles[i][j];
 
 	this->prev_board = obj.prev_board;
+	
+
 	this->moves_made = obj.moves_made;
 	this->empty_node_x = obj.empty_node_x;
 	this->empty_node_y = obj.empty_node_y;
+	this->manhattan_score = obj.manhattan_score;
 }
 
-int Solver::Board::get_dimension()
+Solver::Board::Board(Board && obj)
+{
+	this->dimension = obj.dimension;
+	titles = obj.titles;
+	obj.titles = nullptr;
+	this->prev_board = obj.prev_board;
+	obj.prev_board = nullptr;
+	this->moves_made = obj.moves_made;
+	this->empty_node_x = obj.empty_node_x;
+	this->empty_node_y = obj.empty_node_y;
+	this->manhattan_score = obj.manhattan_score;
+
+}
+
+
+int Solver::Board::get_dimension() const
 {
 	return this->dimension;
 }
@@ -169,7 +138,7 @@ int Solver::Board::manhattan() const
 	return diff;
 }
 
-bool Solver::Board::is_goal()
+bool Solver::Board::is_goal() const
 {
 	for (int k = 0; k < dimension * dimension; k++)
 		if (titles[k % dimension][k / dimension] != k + 1)
@@ -178,7 +147,7 @@ bool Solver::Board::is_goal()
 	return true;
 }
 
-bool Solver::Board::equals(Board obj)
+bool Solver::Board::equals(Board obj) const
 {
 	for (int k = 0; k < dimension * dimension; k++)
 		if (this->titles[k % dimension][k / dimension] != obj.titles[k % dimension][k / dimension])
@@ -187,76 +156,59 @@ bool Solver::Board::equals(Board obj)
 	return true;
 }
 
-std::vector<Solver::Board> Solver::Board::neighbours()
+std::vector<Solver::Board*> Solver::Board::neighbours() const 
 {
-	std::vector<Board> neighbour_list;
-	Board neighbour = *this;
+	std::vector<Board*> neighbour_list;
 	
 	int i = this->empty_node_x;
 	int j = this->empty_node_y;
 
-	if (i < dimension - 1)
+	if (i < dimension - 1 && !(prev_board && i + 1 == prev_board->empty_node_x))
 	{
-		swap(neighbour.titles[i][j], neighbour.titles[i + 1][j]);
-		neighbour.empty_node_x = i + 1;
-		neighbour.moves_made++;
-		neighbour.prev_board = new Board(*this);
-		if(this->prev_board && !neighbour.equals(*this->prev_board))
-			neighbour_list.push_back(neighbour);
-		else if(!this->prev_board)
-			neighbour_list.push_back(neighbour);
-
-		neighbour = *this;
+		neighbour_list.emplace_back(new Board(*this));
+		swap(neighbour_list.back()->titles[i][j], neighbour_list.back()->titles[i + 1][j]);
+		neighbour_list.back()->empty_node_x = i + 1;
+		neighbour_list.back()->moves_made++;
+		neighbour_list.back()->prev_board = this;
+		neighbour_list.back()->manhattan_score = neighbour_list.back()->manhattan() + neighbour_list.back()->moves_made;
 	}
-	if (i > 0)
+	if (i > 0 && !(prev_board && i - 1 == prev_board->empty_node_x))
 	{
-		swap(neighbour.titles[i][j], neighbour.titles[i - 1][j]);
-		neighbour.empty_node_x = i - 1;
-		neighbour.moves_made++;
-		neighbour.prev_board = new Board(*this);
-		if (this->prev_board && !neighbour.equals(*this->prev_board))
-			neighbour_list.push_back(neighbour);
-		else if (!this->prev_board)
-			neighbour_list.push_back(neighbour);
-
-		neighbour = *this;
+		neighbour_list.emplace_back(new Board(*this));
+		swap(neighbour_list.back()->titles[i][j], neighbour_list.back()->titles[i - 1][j]);
+		neighbour_list.back()->empty_node_x = i - 1;
+		neighbour_list.back()->moves_made++;
+		neighbour_list.back()->prev_board = this;
+		neighbour_list.back()->manhattan_score = neighbour_list.back()->manhattan() + neighbour_list.back()->moves_made;
 	}
-	if (j < dimension - 1)
+	if (j < dimension - 1 && !(prev_board && j + 1 == prev_board->empty_node_y))
 	{
-		swap(neighbour.titles[i][j], neighbour.titles[i][j + 1]);
-		neighbour.empty_node_y = j + 1;
-		neighbour.moves_made++;
-		neighbour.prev_board = new Board(*this);
-		if (this->prev_board && !neighbour.equals(*this->prev_board))
-			neighbour_list.push_back(neighbour);
-		else if (!this->prev_board)
-			neighbour_list.push_back(neighbour);
-
-		neighbour = *this;
+		neighbour_list.emplace_back(new Board(*this));
+		swap(neighbour_list.back()->titles[i][j], neighbour_list.back()->titles[i][j + 1]);
+		neighbour_list.back()->empty_node_y = j + 1;
+		neighbour_list.back()->moves_made++;
+		neighbour_list.back()->prev_board = this;
+		neighbour_list.back()->manhattan_score = neighbour_list.back()->manhattan() + neighbour_list.back()->moves_made;
 	}
-	if (j > 0)
+	if (j > 0 && !(prev_board && j - 1 == prev_board->empty_node_y))
 	{
-		swap(neighbour.titles[i][j], neighbour.titles[i][j - 1]);
-		neighbour.empty_node_y = j - 1;
-		neighbour.moves_made++;
-		neighbour.prev_board = new Board(*this);
-		if (this->prev_board && !neighbour.equals(*this->prev_board))
-			neighbour_list.push_back(neighbour);
-		else if (!this->prev_board)
-			neighbour_list.push_back(neighbour);
-
-		neighbour = *this;
+		neighbour_list.emplace_back(new Board(*this));
+		swap(neighbour_list.back()->titles[i][j], neighbour_list.back()->titles[i][j - 1]);
+		neighbour_list.back()->empty_node_y = j - 1;
+		neighbour_list.back()->moves_made++;
+		neighbour_list.back()->prev_board = this;
+		neighbour_list.back()->manhattan_score = neighbour_list.back()->manhattan() + neighbour_list.back()->moves_made;
 	}
 
-	return std::move(neighbour_list);
+	return neighbour_list;
 }
 
 bool Solver::Board::operator<(const Board & obj)
 {
-	return this->manhattan() + this->moves_made < obj.manhattan() + obj.moves_made;
+	return this->manhattan_score < obj.manhattan_score;
 }
 
-std::pair<int, int> Solver::Board::get_empty_pos()
+std::pair<int, int> Solver::Board::get_empty_pos() const
 {
 	return std::make_pair(empty_node_x, empty_node_y);
 }
@@ -278,15 +230,15 @@ void Solver::solve()
 		solved = true;
 		result_board = priority_queue.remove_min();
 	}
-
+	
 	while(!solved)
 	{
-		Board temp = priority_queue.remove_min();
-		std::vector<Board> vec = temp.neighbours();
-		for (Board t : vec)
+		Board* temp = priority_queue.remove_min();
+		std::vector<Board*> vec = temp->neighbours();
+		for (Board* t : vec)
 		{
 			priority_queue.insert(t);
-			if (t.is_goal())
+			if (t->is_goal())
 			{
 				result_board = t;
 				solved = true;
@@ -299,7 +251,7 @@ void Solver::solve()
 std::vector<std::pair<int, int>> Solver::solution()
 {
 	std::vector<std::pair<int, int>> solution;
-	Board* curr = &result_board;
+	const Board* curr = result_board;
 	while (curr)
 	{
 		solution.push_back(curr->get_empty_pos());

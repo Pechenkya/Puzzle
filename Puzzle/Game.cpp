@@ -423,8 +423,7 @@ void Game::solve_game()
 	int** int_table = represent_to_int();
 	Solver solver(int_table, side_length);
 	solver.solve();
-	std::vector<std::pair<int, int>> interation_nodes = solver.solution();
-	for (auto t : interation_nodes)
+	for (auto t : solver.solution())
 		move(t.first, t.second);
 	//window->close();
 }
