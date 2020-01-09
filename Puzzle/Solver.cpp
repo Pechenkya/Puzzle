@@ -130,12 +130,12 @@ int Solver::Board::manhattan() const
 	int diff{ 0 };
 	for (int j = 0; j < dimension; j++)
 		for (int i = 0; i < dimension; i++)
-			if (titles[i][j] != j * dimension + i + 1)
+			if (titles[i][j] != j * dimension + i + 1 && titles[i][j] != dimension * dimension) // second check could be redundant?
 			{
 				diff += abs((titles[i][j] - 1) % dimension - i);
 				diff += abs((titles[i][j] - 1) / dimension - j);
 			}
-	return diff;
+	return dimension / 2 * diff; // 2? - could be dimension / 2
 }
 
 bool Solver::Board::is_goal() const
