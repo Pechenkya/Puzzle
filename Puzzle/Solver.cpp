@@ -2,6 +2,7 @@
 #include <math.h>
 #include <utility>
 
+
 Solver::Board::~Board()
 {
 
@@ -11,9 +12,6 @@ Solver::Board::~Board()
 			delete[] titles[i];
 		delete[] titles;
 	}
-
-	//if (prev_board)
-	//	delete prev_board;
 
 }
 
@@ -130,11 +128,15 @@ int Solver::Board::manhattan() const
 	int diff{ 0 };
 	for (int j = 0; j < dimension; j++)
 		for (int i = 0; i < dimension; i++)
-			if (titles[i][j] != j * dimension + i + 1 && titles[i][j] != dimension * dimension) // second check could be redundant?
+			if (titles[i][j] != j * dimension + i + 1)
 			{
 				diff += abs((titles[i][j] - 1) % dimension - i);
 				diff += abs((titles[i][j] - 1) / dimension - j);
 			}
+
+	diff -= abs((titles[empty_node_x][empty_node_y] - 1) % dimension - empty_node_x);
+	diff -= abs((titles[empty_node_x][empty_node_y] - 1) / dimension - empty_node_y);
+
 	return dimension / 2 * diff; // 2? - could be dimension / 2
 }
 
@@ -237,12 +239,13 @@ void Solver::solve()
 		std::vector<Board*> vec = temp->neighbours();
 		for (Board* t : vec)
 		{
-			priority_queue.insert(t);
 			if (t->is_goal())
 			{
 				result_board = t;
 				solved = true;
+				break;
 			}
+			priority_queue.insert(t);
 		}
 
 	}
@@ -264,6 +267,7 @@ std::vector<std::pair<int, int>> Solver::solution()
 
 Solver::~Solver()
 {
+	delete result_board;
 }
 
 void Solver::swap(int& a, int& b)

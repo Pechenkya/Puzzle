@@ -8,6 +8,7 @@ class PQueue
 {
 private:
 	std::vector<T*> heap;
+	std::vector<T*> trash;
 	int size;
 
 	bool is_empty();
@@ -305,6 +306,7 @@ T* PQueue<T>::remove_min()
 	exch(1, size--);
 	sink(1);
 	heap.pop_back();
+	trash.push_back(min);
 	return min;
 }
 
@@ -319,6 +321,11 @@ template<typename T>
 PQueue<T>::~PQueue()
 {
 	for (auto t : heap)
+	{
+		delete t;
+	}
+
+	for (auto t : trash)
 	{
 		delete t;
 	}
