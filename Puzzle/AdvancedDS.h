@@ -66,6 +66,40 @@ public:
 	T& operator*();
 };
 
+template<typename Key>
+class IntervalST
+{
+	struct Node
+	{
+		Key int_beg;
+		Key int_end;
+		Key branch_max;
+		Node* left;
+		Node* right;
+	};
+}; 
+
+template <typename ObjT, typename DimT, bool (*comp)(const ObjT&, const ObjT&)>
+class TDTree_SingleObject
+{
+	struct NodeBase
+	{
+		T get(DimT t) = 0;
+
+		Node* left, right;
+	};
+
+	struct DivisionNode : NodeBase
+	{
+
+	};
+
+	struct LeafNode : NodeBase
+	{
+
+	};
+};
+
 template<typename T>
 PQueue<T>::HeapItr::HeapItr(T* &new_node)
 {
@@ -329,20 +363,3 @@ PQueue<T>::~PQueue()
 		delete t;
 	}
 }
-
-
-
-
-
-template<typename Key>
-class InternalST
-{
-	struct Node
-	{
-		Key int_beg;
-		Key int_end;
-		Key branch_max;
-		Node* left;
-		Node* right;
-	};
-};
