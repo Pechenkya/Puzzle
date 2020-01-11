@@ -298,7 +298,6 @@ std::vector<T> PQueue<T>::remove_elements()
 	return temp;
 }
 
-
 template<typename T>
 T* PQueue<T>::remove_min()
 {
@@ -330,3 +329,20 @@ PQueue<T>::~PQueue()
 		delete t;
 	}
 }
+
+
+
+
+
+template<typename Key>
+class InternalST
+{
+	struct Node
+	{
+		Key int_beg;
+		Key int_end;
+		Key branch_max;
+		Node* left;
+		Node* right;
+	};
+};
