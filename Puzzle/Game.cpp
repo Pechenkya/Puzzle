@@ -29,8 +29,8 @@ const sf::Color NODE_COLOR = sf::Color(211, 211, 211);
 const sf::Color OUTLINE_COLOR = sf::Color::White;
 const sf::Color AVAILABILITY_COLOR = sf::Color(255, 173, 51);
 
-float OUTLINE_THICKNESS = 5.f; 
-float BUTTON_OUTLINE_THICKNESS = 5.f;
+float Game::Node::OUTLINE_THICKNESS = 5.f; 
+float Game::Button::OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
 
 const float cant_move_animation_time = 0.2f;
@@ -62,33 +62,15 @@ sf::RenderWindow* Game::window;
 //
 
 //UI
+std::list<Game::Clickable*>* Game::UI = nullptr;
 Game::Button* Game::ready_button = nullptr;
 Game::Button* Game::reset_button = nullptr;
 Game::Button* Game::buttons[2] = { nullptr };
 //
 
-Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, 
-	position{ pos }, text_position{ sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3) }
-{
-	value = j * side_length + i + 1;
-	if (value == side_length * side_length)
-	{
-		rectangle = nullptr;
-		text = nullptr;
-	}
-	else
-	{
-		rectangle = new sf::RectangleShape(sf::Vector2f(node_size, node_size));
-		rectangle->setPosition(pos);
-		rectangle->setFillColor(NODE_COLOR);
-		rectangle->setOutlineColor(OUTLINE_COLOR);
-		rectangle->setOutlineThickness(0.f);
-		text = new sf::Text(sf::String(std::to_string(value)), FONT);
-		text->setPosition(text_position);
-		text->setCharacterSize(static_cast<int>(node_size / 3));
-		text->setFillColor(BG_COLOR);
-	}
-}
+Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, value { j * side_length + i + 1 },
+	Game::Clickable{ sf::Text(sf::String(std::to_string(value)), FONT), sf::Vector2f(node_size, node_size),
+		pos, sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3) }{}
 
 Game::Node::~Node()
 {
@@ -134,41 +116,6 @@ void Game::Node::try_move()
 		prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS);
 		END_INTERACTION(prev_node);
 	}
-}
-
-void Game::Node::select()
-{
-	BEGIN_INTERACTION(this);
-	sf::Color default_color = rectangle->getOutlineColor();
-	float default_thickness = rectangle->getOutlineThickness();
-	sf::RectangleShape* rect = rectangle;
-
-	rect->setOutlineColor(OUTLINE_COLOR);
-	rect->setOutlineThickness(OUTLINE_THICKNESS);
-	END_INTERACTION(this);
-
-
-	while (window->isOpen())
-	{
-		const sf::Event& e = mouse_move_events->pop();
-
-		BEGIN_INTERACTION(this);
-
-		if (this == empty_node) { INTERACTION_RETURN(); }
-
-		if (!contains(e.mouseMove.x, e.mouseMove.y))
-		{
-			END_INTERACTION(this);
-			break;
-		}
-
-		END_INTERACTION(this);
-	}
-
-	BEGIN_INTERACTION(this);
-	rect->setOutlineColor(default_color);
-	rect->setOutlineThickness(default_thickness);
-	END_INTERACTION(this);
 }
 
 void Game::Node::play_animation(const Animation & animation)
@@ -228,13 +175,18 @@ void Game::Node::initialize_nodes()
 	{
 		for (int i = 0; i < side_length; i++)
 		{
-			table[i][j] = new Node(i, j, node_size, position);
+			table[i][j] = create_clickable<Node>(i, j, node_size, position);
 			position.x += offset + node_size;
 		}
 		position.x = starting_position.x;
 		position.y += offset + node_size;
 	}
 	empty_node = table[side_length - 1][side_length - 1];
+
+	delete empty_node->rectangle;
+	empty_node->rectangle = nullptr;
+	delete empty_node->text;
+	empty_node->text = nullptr;
 
 	//Animations
 	float shift1 = offset / 3.f;
@@ -312,13 +264,20 @@ void Game::Node::reset_nodes()
 	}
 }
 
-bool Game::Node::contains(const float& pos_x, const float& pos_y) const
+sf::Vector2f Game::Clickable::get_size()
 {
-	return !((pos_x > rectangle->getPosition().x + rectangle->getSize().x || pos_x < rectangle->getPosition().x)
-		|| (pos_y > rectangle->getPosition().y + rectangle->getSize().y || pos_y < rectangle->getPosition().y));
+	if (rectangle)
+		return rectangle->getSize();
+	
+	return sf::Vector2f();
 }
 
-void Game::Node::draw(sf::RenderWindow & window) const
+bool Game::Clickable::active() const
+{
+	return active;
+}
+
+void Game::Clickable::draw(sf::RenderWindow & window) const
 {
 	BEGIN_INTERACTION(this);
 
@@ -337,19 +296,29 @@ void Game::Node::set_default_outline()
 	rectangle->setOutlineColor(OUTLINE_COLOR);
 }
 
+float Game::Node::get_outline_thickness()
+{
+	return OUTLINE_THICKNESS;
+}
+
 void Game::initialize_game(size_t sl)
 {
 	window = new sf::RenderWindow(sf::VideoMode(window_width, window_height), "Puzzle", sf::Style::Titlebar | sf::Style::Close);
 	FONT.loadFromFile("ArialRegular.ttf");
 	side_length = sl;
 
+	UI = new std::list<Clickable*>();
+
 	mouse_move_events = new EventQueue();
 	mouse_click_events = new EventQueue();
 	empty_adjacent = new AdjacentSet();
 	Node::initialize_nodes();
-	pos_tree = new PositionTree();
-
 	initialize_buttons();
+	std::sort(UI->begin(), UI->end(), [](const Game::Clickable* a, const Game::Clickable* b) {
+		
+
+	});
+	pos_tree = new PositionTree();
 }
 
 void Game::draw_process()
@@ -387,13 +356,13 @@ bool Game::start_game()
 
 		if (reset_button->is_pressed())
 		{
-			reset_button->set_unpressed();
+			reset_button->set_released();
 			reset();
 		}
 
 		if (ready_button->is_pressed())
 		{
-			ready_button->set_unpressed();
+			ready_button->set_released();
 			set_buttons_invisible();
 			mouse_click_events->disable();
 			mouse_move_events->disable();
@@ -497,7 +466,7 @@ void Game::initialize_buttons()
 	float table_side_size = std::min(window_height, window_width);
 	float padding = (std::max(window_height, window_width) - table_side_size) / 2;
 	float button_size = table_side_size * 0.075;
-	BUTTON_OUTLINE_THICKNESS = table_side_size * 0.005;
+	Button::OUTLINE_THICKNESS = table_side_size * 0.005;
 
 	sf::Vector2f button_position;
 	if (window_height < window_width)
@@ -511,7 +480,7 @@ void Game::initialize_buttons()
 		button_position.y = padding + table_side_size - table_side_size * 0.0875;
 	}
 
-	ready_button = new Button(button_size, button_position, "S"); //S means Solve
+	ready_button = create_clickable<Button>(button_size, button_position, "S"); //S means Solve
 	buttons[0] = ready_button;
 
 	if (window_height < window_width)
@@ -525,7 +494,7 @@ void Game::initialize_buttons()
 		button_position.y = padding + table_side_size * 0.0125;
 	}
 
-	reset_button = new Button(button_size, button_position, "R"); //R means Reset
+	reset_button = create_clickable<Button>(button_size, button_position, "R"); //R means Reset
 	buttons[1] = reset_button;
 }
 
@@ -617,7 +586,7 @@ void Game::EventQueue::enable()
 	END_INTERACTION(this);
 }
 
-Game::Node* Game::PositionTree::match(float x, float y)
+Game::Clickable* Game::PositionTree::match(float x, float y)
 {
 	int x_index = get_index(node_bounds_x, x);
 	if (x_index == -1)
@@ -632,39 +601,50 @@ Game::Node* Game::PositionTree::match(float x, float y)
 
 Game::PositionTree::PositionTree()
 {
-	float node_size = (std::min(window_height, window_width) * 0.8 * 0.875) / side_length;
-	node_bounds_x = new std::pair<float, float>[side_length];
-	node_bounds_y = new std::pair<float, float>[side_length];
+	std::vector<Clickable*> first_vec;
 
-	for (int i = 0; i < side_length; i++)
+	Clickable* temp_clickable = *UI->begin();
+
+	while (temp_clickable->position.x < )
 	{
-		node_bounds_x[i] = std::make_pair(table[i][0]->position.x, table[i][0]->position.x + node_size);
-		node_bounds_y[i] = std::make_pair(table[0][i]->position.y, table[0][i]->position.y + node_size);
+
+	}
+
+	tree.push_back();
+
+	for (auto i = ++UI->cbegin(); i != UI->cend(); ++i)
+	{
+		
 	}
 }
 
-Game::PositionTree::~PositionTree()
-{
-	delete[] node_bounds_x;
-	delete[] node_bounds_y;
-}
 
-int Game::PositionTree::get_index(std::pair<float, float>* bounds_array, float pos, int a, int b)
+int Game::PositionTree::get_index_x(float pos, int a, int b)
 {
 	if (a >= b)
-	{
-		if (pos > bounds_array[a].second || pos < bounds_array[a].first)
-			return -1;
-		else
-			return a;
-	}
+		return a;
 
 	int m = (a + b) / 2;
 
-	if (pos < bounds_array[m].first)
-		return get_index(bounds_array, pos, a, m - 1);
-	else if (pos > bounds_array[m].second)
-		return get_index(bounds_array, pos, m + 1, b);
+	if (pos < tree[m].first)
+		return get_index_x(pos, a, m - 1);
+	else if (pos > tree[m + 1].first)
+		return get_index_x(pos, m + 1, b);
+	else
+		return m;
+}
+
+int Game::PositionTree::get_index_y(float pos, int a, int b, std::vector<Clickable*>& x_vec)
+{
+	if (a >= b)
+		return a;
+
+	int m = (a + b) / 2;
+
+	if (pos < x_vec[m]->position.y)
+		return get_index_y(pos, a, m - 1, x_vec);
+	else if (pos > x_vec[m + 1]->position.y)
+		return get_index_y(pos, m + 1, b, x_vec);
 	else
 		return m;
 }
@@ -720,39 +700,30 @@ inline Game::Node* Game::AdjacentSet::AdjItr::operator*()
 	return container->arr.at(i);
 }
 
-Game::Button::Button(float button_size, sf::Vector2f pos, std::string lable)
-	: position{ pos }, text_position{ sf::Vector2f(pos.x + button_size / 3, pos.y + button_size / 3) }
-{
-	{
-		rectangle = new sf::RectangleShape(sf::Vector2f(button_size, button_size));
-		rectangle->setPosition(pos);
-		rectangle->setFillColor(NODE_COLOR);
-		rectangle->setOutlineColor(OUTLINE_COLOR);
-		rectangle->setOutlineThickness(0.f);
-		text = new sf::Text(sf::String(lable), FONT);
-		text->setPosition(text_position);
-		text->setCharacterSize(static_cast<int>(button_size / 3));
-		text->setFillColor(BG_COLOR);
-	}
-}
+Game::Button::Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable)
+	: Game::Clickable{ sf::Text(sf::String(lable), FONT), sf::Vector2f(button_size_x, button_size_y), 
+		pos, sf::Vector2f(pos.x + button_size_x / 3, pos.y + button_size_y / 3) } {}
 
 void Game::Button::draw(sf::RenderWindow & window) const
 {
 	if (!visible)
 		return;
 
-	BEGIN_INTERACTION(this);
-
-	if (rectangle && text)
-	{
-		window.draw(*rectangle);
-		window.draw(*text);
-	}
-
-	END_INTERACTION(this);
+	Clickable::draw(window);
 }
 
-void Game::Button::select()
+float Game::Button::get_outline_thickness()
+{
+	return OUTLINE_THICKNESS;
+}
+
+bool Game::Clickable::contains(const float & pos_x, const float & pos_y) const
+{
+	return !((pos_x > rectangle->getPosition().x + rectangle->getSize().x || pos_x < rectangle->getPosition().x)
+		|| (pos_y > rectangle->getPosition().y + rectangle->getSize().y || pos_y < rectangle->getPosition().y));
+}
+
+void Game::Clickable::select()
 {
 	BEGIN_INTERACTION(this);
 	sf::Color default_color = rectangle->getOutlineColor();
@@ -760,7 +731,7 @@ void Game::Button::select()
 	sf::RectangleShape* rect = rectangle;
 
 	rect->setOutlineColor(OUTLINE_COLOR);
-	rect->setOutlineThickness(BUTTON_OUTLINE_THICKNESS);
+	rect->setOutlineThickness(get_outline_thickness());
 	END_INTERACTION(this);
 
 
@@ -769,6 +740,8 @@ void Game::Button::select()
 		const sf::Event& e = mouse_move_events->pop();
 
 		BEGIN_INTERACTION(this);
+
+		if (!active) { INTERACTION_RETURN(); }
 
 		if (!contains(e.mouseMove.x, e.mouseMove.y))
 		{
@@ -785,12 +758,6 @@ void Game::Button::select()
 	END_INTERACTION(this);
 }
 
-bool Game::Button::contains(const float & pos_x, const float & pos_y) const
-{
-	return !((pos_x > rectangle->getPosition().x + rectangle->getSize().x || pos_x < rectangle->getPosition().x)
-		|| (pos_y > rectangle->getPosition().y + rectangle->getSize().y || pos_y < rectangle->getPosition().y));
-}
-
 void Game::Button::set_pressed()
 {
 	if (pressed || !visible)
@@ -802,12 +769,12 @@ void Game::Button::set_pressed()
 	END_INTERACTION(this);
 	std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	BEGIN_INTERACTION(this);
-	rectangle->setOutlineThickness(BUTTON_OUTLINE_THICKNESS);
+	rectangle->setOutlineThickness(OUTLINE_THICKNESS);
 	END_INTERACTION(this);
 	press_condition.notify_one();
 }
 
-void Game::Button::set_unpressed()
+void Game::Button::set_released()
 {
 	pressed = false;
 }
@@ -815,4 +782,20 @@ void Game::Button::set_unpressed()
 bool Game::Button::is_pressed()
 {
 	return pressed;
+}
+
+Game::Clickable::Clickable(sf::Text caption, sf::Vector2f size, sf::Vector2f pos, sf::Vector2f text_pos)
+	: position{ pos }, text_position{ text_pos }
+{
+	{
+		rectangle = new sf::RectangleShape(size);
+		rectangle->setPosition(pos);
+		rectangle->setFillColor(NODE_COLOR);
+		rectangle->setOutlineColor(OUTLINE_COLOR);
+		rectangle->setOutlineThickness(0.f);
+		text = new sf::Text(caption);
+		text->setPosition(text_position);
+		text->setCharacterSize(static_cast<int>(size.y / 3));
+		text->setFillColor(BG_COLOR);
+	}
 }

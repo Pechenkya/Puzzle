@@ -2,6 +2,7 @@
 #include <vector>
 #include <deque>
 #include <array>
+#include <list>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
 
@@ -30,7 +31,31 @@ namespace sf
 
 class Game
 {
-	struct Node
+	struct Clickable
+	{
+	protected:
+		sf::RectangleShape* rectangle;
+		sf::Text* text;
+		mutable std::mutex interaction_mutex;
+		sf::Vector2f size;
+
+		bool active;
+	public:
+		Clickable(sf::Text caption, sf::Vector2f size, sf::Vector2f pos, sf::Vector2f text_pos);
+
+		const sf::Vector2f position;
+		const sf::Vector2f text_position;
+		sf::Vector2f get_size();
+
+		bool active() const;
+
+		bool contains(const float& pos_x, const float& pos_y) const;
+		virtual float get_outline_thickness() = 0;
+		virtual void select();
+		virtual void draw(sf::RenderWindow& window) const;
+	};
+
+	struct Node : Clickable
 	{
 	private:
 		struct Animation
@@ -42,34 +67,45 @@ class Game
 			const size_t step_count;
 		};
 
-		sf::RectangleShape* rectangle;
-		sf::Text* text;
-		mutable std::mutex interaction_mutex;
-
 		void play_animation(const Animation& animation);
 		Node* swap_with_empty();
-		bool contains(const float& pos_x, const float& pos_y) const;
-
+		
 		// Animations
 		static const Animation* animations[3][3];
 		//
 	public:
+		static float OUTLINE_THICKNESS;
 		int value;
-		const sf::Vector2f position;
-		const sf::Vector2f text_position;
 		const size_t i, j;
 
 		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
 		~Node();
 
 		void try_move();
-		void select();
-		void draw(sf::RenderWindow& window) const;
-
 		void set_default_outline();
+		float get_outline_thickness();
 
 		static void initialize_nodes();
 		static void reset_nodes();
+	};
+
+	struct Button : Clickable
+	{
+	private:
+		bool pressed = false;
+	public:
+		bool visible = true;
+		static float OUTLINE_THICKNESS;
+		std::mutex press_mutex;
+		std::unique_lock<std::mutex> press_lock{ press_mutex, std::defer_lock };
+		std::condition_variable press_condition;
+
+		Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable);
+		void draw(sf::RenderWindow& window) const override;
+		float get_outline_thickness();
+		void set_pressed();
+		void set_released();
+		bool is_pressed();
 	};
 
 	struct EventQueue
@@ -115,43 +151,17 @@ class Game
 
 	struct PositionTree
 	{
-		Node* match(float x, float y);
+		Clickable* match(float x, float y);
 		PositionTree();
 		~PositionTree();
 	private:
-		std::pair<float, float>* node_bounds_x;
-		std::pair<float, float>* node_bounds_y;
-		int get_index(std::pair<float, float>* bounds_array, float pos, int a = 0, int b = side_length - 1);
+		std::vector<std::pair<float, std::vector<Clickable*>>> tree;
+		int get_index_x(float pos, int a, int b);
+		int get_index_y(float pos, int a, int b, std::vector<Clickable*>& x_vec);
+
 	};
-
-	struct Button
-	{
-	private:
-		sf::RectangleShape* rectangle;
-		sf::Text* text;
-		mutable std::mutex interaction_mutex;
-		bool pressed = false;
-	public:
-		bool visible = true;
-
-		std::mutex press_mutex;
-		std::unique_lock<std::mutex> press_lock{ press_mutex, std::defer_lock };
-		std::condition_variable press_condition;
-
-		Button(float button_size, sf::Vector2f pos, std::string lable);
-
-		const sf::Vector2f position;
-		const sf::Vector2f text_position;
-		void draw(sf::RenderWindow& window) const;
-
-		void select();
-		bool contains(const float& pos_x, const float& pos_y) const;
-		void set_pressed();
-		void set_unpressed();
-		bool is_pressed();
 
 	
-	};
 
 public:
 	static void initialize_game(size_t sl = 4);
@@ -177,6 +187,7 @@ private:
 	//
 
 	static Node*** table; // I tut ya zvezdanulsya
+	static std::list<Clickable*>* UI;
 
 	//Drawing thread resources
 	static sf::Font FONT;
@@ -205,6 +216,9 @@ private:
 	static Button* reset_button;
 	static Button* buttons[2];
 
+	template<typename T, typename ...ArgsT>
+	static T* create_clickable(ArgsT&&... args);
+
 	static bool check_buttons(const sf::Event& event);
 	static void set_buttons_invisible();
 
@@ -216,3 +230,11 @@ private:
 	//
 };
 
+//Zabiv
+template<typename T, typename ...ArgsT>
+T* Game::create_clickable(ArgsT&& ...args)
+{
+	Clickable* new_obj = new T(std::forward<ArgsT>(args)...);
+	UI.push_back(new_obj);
+	return static_cast<T*>(new_obj);
+}

@@ -335,7 +335,7 @@ PQueue<T>::~PQueue()
 
 
 template<typename Key>
-class InternalST
+class IternalST
 {
 	struct Node
 	{
