@@ -5,7 +5,7 @@
 #include <list>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
-
+//#include <SFML/Graphics/Color.hpp>
 #include "Solver.h"
 
 //Predeclaration
@@ -22,10 +22,13 @@ namespace sf
 	class RenderWindow;
 	class Text;
 	class Font;
+	class Color;
 	template<
 		class T1,
 		class T2
 	> struct pair;
+
+
 }
 //
 
@@ -36,26 +39,43 @@ class Game
 	protected:
 		sf::RectangleShape* rectangle;
 		sf::Text* text;
+
 		mutable std::mutex interaction_mutex;
-		sf::Vector2f size;
 
 		bool active;
 	public:
 		Clickable(sf::Text caption, sf::Vector2f size, sf::Vector2f pos, sf::Vector2f text_pos);
 
+		const sf::Vector2f size;
 		const sf::Vector2f position;
 		const sf::Vector2f text_position;
-		sf::Vector2f get_size();
 
-		bool active() const;
-
-		bool contains(const float& pos_x, const float& pos_y) const;
-		virtual float get_outline_thickness() = 0;
+		virtual bool is_active() const;
+		virtual bool contains(const float& pos_x, const float& pos_y) const;
 		virtual void select();
 		virtual void draw(sf::RenderWindow& window) const;
+
 	};
 
-	struct Node : Clickable
+	template<typename T>
+	struct ClickableStyleNode : Clickable
+	{
+	public:
+		// Polymorphic style getters
+		static const sf::Color& NODE_COLOR();
+		static const sf::Color& OUTLINE_COLOR();
+		static float OUTLINE_THICKNESS();
+		//
+
+	protected:
+		// Default clickable object style (can be overriden in derived classes)
+		static const sf::Color _NODE_COLOR;
+		static const sf::Color _OUTLINE_COLOR;
+		static float _OUTLINE_THICKNESS;
+		//
+	};
+
+	struct Node : ClickableStyleNode<Node>
 	{
 	private:
 		struct Animation
@@ -73,8 +93,11 @@ class Game
 		// Animations
 		static const Animation* animations[3][3];
 		//
+	protected:
+		// Default Node object style (can be overriden in derived classes)
+		static const sf::Color _AVAILABILITY_COLOR;
+		//
 	public:
-		static float OUTLINE_THICKNESS;
 		int value;
 		const size_t i, j;
 
@@ -83,29 +106,36 @@ class Game
 
 		void try_move();
 		void set_default_outline();
-		float get_outline_thickness();
 
 		static void initialize_nodes();
 		static void reset_nodes();
+
+		// Polymorphic style getters
+		static const sf::Color& AVAILABILITY_COLOR();
+		//
 	};
 
-	struct Button : Clickable
+	struct Button : public ClickableStyleNode<Button>
 	{
 	private:
 		bool pressed = false;
 	public:
 		bool visible = true;
-		static float OUTLINE_THICKNESS;
 		std::mutex press_mutex;
 		std::unique_lock<std::mutex> press_lock{ press_mutex, std::defer_lock };
 		std::condition_variable press_condition;
 
 		Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable);
 		void draw(sf::RenderWindow& window) const override;
-		float get_outline_thickness();
 		void set_pressed();
 		void set_released();
 		bool is_pressed();
+
+	protected:
+		// Default Button object style (can be overriden in derived classes)
+		static const sf::Color _OUTLINE_COLOR;
+		static float _OUTLINE_THICKNESS;
+		//
 	};
 
 	struct EventQueue
