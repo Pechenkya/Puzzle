@@ -76,9 +76,19 @@ Game::Button* Game::reset_button = nullptr;
 Game::Button* Game::buttons[2] = { nullptr };
 //
 
-Game::Node::Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos) : i{ _i }, j{ _j }, value { j * side_length + i + 1 },
-	Game::Clickable<Node>{ sf::Text(sf::String(std::to_string(value)), FONT), sf::Vector2f(node_size, node_size),
-		pos, sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3) }{}
+
+std::function<void()> Game::Node::SELECT_ADDITION()
+{
+	return std::function<void()>();
+}
+
+Game::Node::Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos) : i{ _i }, j{ _j }, value { j * side_length + i + 1 },
+	Game::ClickableStyleNode<Node>{ sf::Text(sf::String(std::to_string(value)), FONT), sf::Vector2f(node_size, node_size),
+		pos, sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3) }
+{
+	rectangle->setFillColor(NODE_COLOR());
+	rectangle->setOutlineColor(OUTLINE_COLOR());
+}
 
 Game::Node::~Node()
 {
@@ -314,7 +324,15 @@ float Game::ClickableStyleNode<T>::OUTLINE_THICKNESS()
 	return T::_OUTLINE_THICKNESS();
 }
 
-void Game::Node::set_default_outline()
+template<typename T>
+Game::ClickableStyleNode<T>::ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos) : Clickable(caption, size, pos, text_pos) 
+{
+	rectangle->setFillColor(NODE_COLOR());
+	rectangle->setOutlineColor(OUTLINE_COLOR());
+}
+
+template<typename T>
+void Game::ClickableStyleNode<T>::set_default_outline()
 {
 	rectangle->setOutlineThickness(0.f);
 	rectangle->setOutlineColor(OUTLINE_COLOR());
@@ -721,8 +739,12 @@ inline Game::Node* Game::AdjacentSet::AdjItr::operator*()
 }
 
 Game::Button::Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable)
-	: Game::Clickable<Button>{ sf::Text(sf::String(lable), FONT), sf::Vector2f(button_size_x, button_size_y), 
-		pos, sf::Vector2f(pos.x + button_size_x / 3, pos.y + button_size_y / 3) } {}
+	: Game::ClickableStyleNode<Button>{ sf::Text(sf::String(lable), FONT), sf::Vector2f(button_size_x, button_size_y), 
+		pos, sf::Vector2f(pos.x + button_size_x / 3, pos.y + button_size_y / 3) } 
+{
+	rectangle->setFillColor(NODE_COLOR());
+	rectangle->setOutlineColor(OUTLINE_COLOR());
+}
 
 void Game::Button::draw(sf::RenderWindow & window) const
 {
@@ -741,12 +763,7 @@ bool Game::Clickable::contains(const float & pos_x, const float & pos_y) const
 void Game::Clickable::select()
 {
 	BEGIN_INTERACTION(this);
-	sf::Color default_color = rectangle->getOutlineColor();
-	float default_thickness = rectangle->getOutlineThickness();
-	sf::RectangleShape* rect = rectangle;
-
-	rect->setOutlineColor(OUTLINE_COLOR());
-	rect->setOutlineThickness(OUTLINE_THICKNESS());
+	auto post_callback = SELECT_ADDITION();
 	END_INTERACTION(this);
 
 
@@ -768,8 +785,7 @@ void Game::Clickable::select()
 	}
 
 	BEGIN_INTERACTION(this);
-	rect->setOutlineColor(default_color);
-	rect->setOutlineThickness(default_thickness);
+	post_callback();
 	END_INTERACTION(this);
 }
 
@@ -798,15 +814,29 @@ bool Game::Button::is_pressed()
 {
 	return pressed;
 }
-template<typename T>
-Game::Clickable<T>::Clickable(sf::Text caption, sf::Vector2f size, sf::Vector2f pos, sf::Vector2f text_pos)
+
+std::function<void()> Game::Button::SELECT_ADDITION()
+{
+	sf::Color default_color = rectangle->getOutlineColor();
+	float default_thickness = rectangle->getOutlineThickness();
+	sf::RectangleShape* rect = rectangle;
+
+	rect->setOutlineColor(OUTLINE_COLOR());
+	rect->setOutlineThickness(OUTLINE_THICKNESS());
+
+	return std::bind([](const sf::Color & def_col, float def_thick, sf::RectangleShape * r)
+		{
+			r->setOutlineColor(def_col);
+			r->setOutlineThickness(def_thick);
+		}, default_color, default_thickness, rect);
+}
+
+Game::Clickable::Clickable(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos)
 	: position{ pos }, text_position{ text_pos }
 {
 	{
 		rectangle = new sf::RectangleShape(size);
 		rectangle->setPosition(pos);
-		rectangle->setFillColor(NODE_COLOR);
-		rectangle->setOutlineColor(OUTLINE_COLOR);
 		rectangle->setOutlineThickness(0.f);
 		text = new sf::Text(caption);
 		text->setPosition(text_position);

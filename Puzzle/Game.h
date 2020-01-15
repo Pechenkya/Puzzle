@@ -3,6 +3,7 @@
 #include <deque>
 #include <array>
 #include <list>
+#include <functional>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
 //#include <SFML/Graphics/Color.hpp>
@@ -43,8 +44,10 @@ class Game
 		mutable std::mutex interaction_mutex;
 
 		bool active;
+
+		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
 	public:
-		Clickable(sf::Text caption, sf::Vector2f size, sf::Vector2f pos, sf::Vector2f text_pos);
+		Clickable(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
 
 		const sf::Vector2f size;
 		const sf::Vector2f position;
@@ -54,11 +57,10 @@ class Game
 		virtual bool contains(const float& pos_x, const float& pos_y) const;
 		virtual void select();
 		virtual void draw(sf::RenderWindow& window) const;
-
 	};
 
 	template<typename T>
-	struct ClickableStyleNode : Clickable
+	struct ClickableStyleNode : public Clickable
 	{
 	public:
 		// Polymorphic style getters
@@ -67,7 +69,12 @@ class Game
 		static float OUTLINE_THICKNESS();
 		//
 
+		void set_default_outline();
+
+		ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
+
 	protected:
+
 		// Default clickable object style (can be overriden in derived classes)
 		static const sf::Color _NODE_COLOR;
 		static const sf::Color _OUTLINE_COLOR;
@@ -75,7 +82,7 @@ class Game
 		//
 	};
 
-	struct Node : ClickableStyleNode<Node>
+	struct Node : public ClickableStyleNode<Node>
 	{
 	private:
 		struct Animation
@@ -97,15 +104,17 @@ class Game
 		// Default Node object style (can be overriden in derived classes)
 		static const sf::Color _AVAILABILITY_COLOR;
 		//
+
+		std::function<void()> SELECT_ADDITION() override;
+
 	public:
 		int value;
 		const size_t i, j;
 
-		Node(size_t _i, size_t _j, float node_size, sf::Vector2f pos);
+		Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos);
 		~Node();
 
 		void try_move();
-		void set_default_outline();
 
 		static void initialize_nodes();
 		static void reset_nodes();
@@ -136,6 +145,8 @@ class Game
 		static const sf::Color _OUTLINE_COLOR;
 		static float _OUTLINE_THICKNESS;
 		//
+
+		std::function<void()> SELECT_ADDITION() override;
 	};
 
 	struct EventQueue
