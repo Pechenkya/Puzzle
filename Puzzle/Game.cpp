@@ -39,8 +39,6 @@ float Game::Button::_OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
 static const sf::Color BG_COLOR = sf::Color::Black;
 
-
-
 const float cant_move_animation_time = 0.2f;
 const float animation_time = 0.4f;
 //
@@ -76,6 +74,26 @@ Game::Button* Game::reset_button = nullptr;
 Game::Button* Game::buttons[2] = { nullptr };
 //
 
+
+bool Game::clickable_comp_x(const Clickable* a, const Clickable* b) 
+{
+	if (a->position.x < b->position.x)
+		return true;
+	else if (a->position.x > b->position.x)
+		return false;
+	else
+		return clickable_comp_y(a, b);
+}
+
+bool Game::clickable_comp_y(const Clickable* a, const Clickable* b)
+{
+	if (a->position.y < b->position.y)
+		return true;
+	else if (a->position.y > b->position.y)
+		return false;
+	else
+		return false;
+}
 
 std::function<void()> Game::Node::SELECT_ADDITION()
 {
@@ -351,11 +369,8 @@ void Game::initialize_game(size_t sl)
 	mouse_click_events = new EventQueue();
 	empty_adjacent = new AdjacentSet();
 	Node::initialize_nodes();
-	initialize_buttons();
-	std::sort(UI->begin(), UI->end(), [](const Game::Clickable* a, const Game::Clickable* b) {
-		
-
-	});
+	Button::initialize_buttons();
+	std::sort(UI->begin(), UI->end(), clickable_comp_x);
 	pos_tree = new PositionTree();
 }
 
@@ -368,8 +383,8 @@ void Game::draw_process()
 		if (check_buttons(e))
 			continue;
 
-		Node* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
-		if (node && node != empty_node)
+		Clickable* node = pos_tree->match(e.mouseMove.x, e.mouseMove.y);
+		if (node && node->is_active())
 			node->select();
 	}
 }
@@ -499,12 +514,12 @@ void Game::click_process()
 	}
 }
 
-void Game::initialize_buttons()
+void Game::Button::initialize_buttons()
 {
 	float table_side_size = std::min(window_height, window_width);
 	float padding = (std::max(window_height, window_width) - table_side_size) / 2;
 	float button_size = table_side_size * 0.075;
-	Button::OUTLINE_THICKNESS() = table_side_size * 0.005;
+	_OUTLINE_THICKNESS = table_side_size * 0.005;
 
 	sf::Vector2f button_position;
 	if (window_height < window_width)
@@ -626,11 +641,11 @@ void Game::EventQueue::enable()
 
 Game::Clickable* Game::PositionTree::match(float x, float y)
 {
-	int x_index = get_index(node_bounds_x, x);
+	int x_index = get_index_x(x, 0, tree.size());
 	if (x_index == -1)
 		return nullptr;
 
-	int y_index = get_index(node_bounds_y, y);
+	int y_index = get_index_y(y, 0, tree.at(x_index).second.size(), tree.at(x_index).second);
 	if (y_index == -1)
 		return nullptr;
 
@@ -639,20 +654,38 @@ Game::Clickable* Game::PositionTree::match(float x, float y)
 
 Game::PositionTree::PositionTree()
 {
-	std::vector<Clickable*> first_vec;
 
-	Clickable* temp_clickable = *UI->begin();
+	const Clickable* temp_clickable = *UI->cbegin();
+	tree.emplace_back();
+	(*tree.end()).first = temp_clickable->position.x;
 
-	while (temp_clickable->position.x < )
+	for (const Clickable* t : *UI)
 	{
+		if (t->position.x > temp_clickable->position.x)
+			break;
 
+		if (t->position.x + t->size.x > temp_clickable->position.x)
+			(*tree.end()).second.push_back(t);
 	}
 
-	tree.push_back();
+	std::sort((*tree.end()).second.begin(), (*tree.end()).second.end(), clickable_comp_y);
 
 	for (auto i = ++UI->cbegin(); i != UI->cend(); ++i)
 	{
+		temp_clickable = *i;
+		tree.emplace_back();
+		(*tree.end()).first = temp_clickable->position.x;
+
+		for (const Clickable* t : *UI)
+		{
+			if (t->position.x > temp_clickable->position.x)
+				break;
+
+			if (t->position.x + t->size.x > temp_clickable->position.x)
+				(*tree.end()).second.push_back(t);
+		}
 		
+		std::sort((*tree.end()).second.begin(), (*tree.end()).second.end(), clickable_comp_y);
 	}
 }
 
@@ -672,10 +705,10 @@ int Game::PositionTree::get_index_x(float pos, int a, int b)
 		return m;
 }
 
-int Game::PositionTree::get_index_y(float pos, int a, int b, std::vector<Clickable<>*>& x_vec)
+Game::Clickable* Game::PositionTree::get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec)
 {
 	if (a >= b)
-		return a;
+		return ;
 
 	int m = (a + b) / 2;
 
@@ -824,11 +857,11 @@ std::function<void()> Game::Button::SELECT_ADDITION()
 	rect->setOutlineColor(OUTLINE_COLOR());
 	rect->setOutlineThickness(OUTLINE_THICKNESS());
 
-	return std::bind([](const sf::Color & def_col, float def_thick, sf::RectangleShape * r)
+	return [rect, default_color, default_thickness]()
 		{
-			r->setOutlineColor(def_col);
-			r->setOutlineThickness(def_thick);
-		}, default_color, default_thickness, rect);
+			rect->setOutlineColor(default_color);
+			rect->setOutlineThickness(default_thickness);
+		};
 }
 
 Game::Clickable::Clickable(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos)

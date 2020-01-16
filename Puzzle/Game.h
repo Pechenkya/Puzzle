@@ -140,6 +140,8 @@ class Game
 		void set_released();
 		bool is_pressed();
 
+
+		static void initialize_buttons();
 	protected:
 		// Default Button object style (can be overriden in derived classes)
 		static const sf::Color _OUTLINE_COLOR;
@@ -196,13 +198,16 @@ class Game
 		PositionTree();
 		~PositionTree();
 	private:
-		std::vector<std::pair<float, std::vector<Clickable*>>> tree;
+		std::vector<std::pair<float, std::vector<const Clickable*>>> tree;
 		int get_index_x(float pos, int a, int b);
-		int get_index_y(float pos, int a, int b, std::vector<Clickable*>& x_vec);
+		Clickable* get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec);
 
 	};
 
-	
+	bool clickable_comp_x(const Game::Clickable* a, const Game::Clickable* b);
+	bool clickable_comp_y(const Game::Clickable* a, const Game::Clickable* b);
+
+
 
 public:
 	static void initialize_game(size_t sl = 4);
@@ -252,7 +257,6 @@ private:
 	//
 
 	//UI
-	static void initialize_buttons();
 	static Button* ready_button;
 	static Button* reset_button;
 	static Button* buttons[2];
