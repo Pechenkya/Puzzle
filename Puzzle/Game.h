@@ -46,6 +46,7 @@ class Game
 		bool active;
 
 		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
+		virtual void ON_CLICK() = 0;
 	public:
 		Clickable(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
 
@@ -57,6 +58,8 @@ class Game
 		virtual bool contains(const float& pos_x, const float& pos_y) const;
 		virtual void select();
 		virtual void draw(sf::RenderWindow& window) const;
+
+		void click();
 	};
 
 	template<typename T>
@@ -69,17 +72,20 @@ class Game
 		static float OUTLINE_THICKNESS();
 		//
 
-		void set_default_outline();
-
-		ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
-
-	protected:
-
 		// Default clickable object style (can be overriden in derived classes)
 		static const sf::Color _NODE_COLOR;
 		static const sf::Color _OUTLINE_COLOR;
 		static float _OUTLINE_THICKNESS;
 		//
+
+		void set_default_outline();
+
+		ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
+
+	protected:
+		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
+		virtual void ON_CLICK() = 0;
+
 	};
 
 	struct Node : public ClickableStyleNode<Node>
@@ -101,26 +107,27 @@ class Game
 		static const Animation* animations[3][3];
 		//
 	protected:
-		// Default Node object style (can be overriden in derived classes)
-		static const sf::Color _AVAILABILITY_COLOR;
-		//
-
 		std::function<void()> SELECT_ADDITION() override;
+		void try_move();
+		void ON_CLICK() override;
 
 	public:
-		int value;
+		size_t value;
 		const size_t i, j;
 
 		Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos);
 		~Node();
 
-		void try_move();
 
 		static void initialize_nodes();
 		static void reset_nodes();
 
 		// Polymorphic style getters
 		static const sf::Color& AVAILABILITY_COLOR();
+		//
+
+		// Default Node object style (can be overriden in derived classes)
+		static const sf::Color _AVAILABILITY_COLOR;
 		//
 	};
 
@@ -129,7 +136,6 @@ class Game
 	private:
 		bool pressed = false;
 	public:
-		bool visible = true;
 		std::mutex press_mutex;
 		std::unique_lock<std::mutex> press_lock{ press_mutex, std::defer_lock };
 		std::condition_variable press_condition;
@@ -142,12 +148,14 @@ class Game
 
 
 		static void initialize_buttons();
-	protected:
+
 		// Default Button object style (can be overriden in derived classes)
 		static const sf::Color _OUTLINE_COLOR;
 		static float _OUTLINE_THICKNESS;
 		//
 
+	protected:
+		void ON_CLICK() override;
 		std::function<void()> SELECT_ADDITION() override;
 	};
 
@@ -204,8 +212,8 @@ class Game
 
 	};
 
-	bool clickable_comp_x(const Game::Clickable* a, const Game::Clickable* b);
-	bool clickable_comp_y(const Game::Clickable* a, const Game::Clickable* b);
+	static bool clickable_comp_x(const const Clickable*& a, const const Clickable*& b);
+	static bool clickable_comp_y(const const Clickable*& a, const const Clickable*& b);
 
 
 
@@ -265,7 +273,6 @@ private:
 	static T* create_clickable(ArgsT&&... args);
 
 	static bool check_buttons(const sf::Event& event);
-	static void set_buttons_invisible();
 
 	static void reset();
 	//
@@ -280,6 +287,6 @@ template<typename T, typename ...ArgsT>
 T* Game::create_clickable(ArgsT&& ...args)
 {
 	Clickable* new_obj = new T(std::forward<ArgsT>(args)...);
-	UI.push_back(new_obj);
+	UI->push_back(new_obj);
 	return static_cast<T*>(new_obj);
 }

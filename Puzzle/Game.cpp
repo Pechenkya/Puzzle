@@ -1,5 +1,7 @@
 ﻿#include "Game.h"
+
 #include "ExpressionParser.h"
+#include "Sort.h"
 
 #include <algorithm>
 #include <iostream>
@@ -75,7 +77,7 @@ Game::Button* Game::buttons[2] = { nullptr };
 //
 
 
-bool Game::clickable_comp_x(const Clickable* a, const Clickable* b) 
+bool Game::clickable_comp_x(const const Clickable*& a, const const Clickable*& b)
 {
 	if (a->position.x < b->position.x)
 		return true;
@@ -85,12 +87,11 @@ bool Game::clickable_comp_x(const Clickable* a, const Clickable* b)
 		return clickable_comp_y(a, b);
 }
 
-bool Game::clickable_comp_y(const Clickable* a, const Clickable* b)
+
+bool Game::clickable_comp_y(const const Clickable*& a, const const Clickable*& b)
 {
 	if (a->position.y < b->position.y)
 		return true;
-	else if (a->position.y > b->position.y)
-		return false;
 	else
 		return false;
 }
@@ -100,9 +101,9 @@ std::function<void()> Game::Node::SELECT_ADDITION()
 	return std::function<void()>();
 }
 
-Game::Node::Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos) : i{ _i }, j{ _j }, value { j * side_length + i + 1 },
+Game::Node::Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos) : i{ _i }, j{ _j }, value { _j * side_length + _i + size_t{ 1 } },
 	Game::ClickableStyleNode<Node>{ sf::Text(sf::String(std::to_string(value)), FONT), sf::Vector2f(node_size, node_size),
-		pos, sf::Vector2f(pos.x + node_size / 3, pos.y + node_size / 3) }
+	pos, sf::Vector2f(pos.x + node_size / size_t{ 3 }, pos.y + node_size / size_t{ 3 }) }
 {
 	rectangle->setFillColor(NODE_COLOR());
 	rectangle->setOutlineColor(OUTLINE_COLOR());
@@ -152,6 +153,11 @@ void Game::Node::try_move()
 		prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS());
 		END_INTERACTION(prev_node);
 	}
+}
+
+void Game::Node::ON_CLICK()
+{
+	try_move();
 }
 
 void Game::Node::play_animation(const Animation & animation)
@@ -290,7 +296,7 @@ void Game::Node::reset_nodes()
 	END_INTERACTION(n);
 	empty_node = n;
 
-	update_empty_adj();
+	//update_empty_adj();
 	for (Node* t : get_adjacent())
 	{
 		BEGIN_INTERACTION(t);
@@ -318,6 +324,11 @@ void Game::Clickable::draw(sf::RenderWindow & window) const
 	END_INTERACTION(this);
 }
 
+void Game::Clickable::click()
+{
+	ON_CLICK();
+}
+
 
 template<typename T>
 const sf::Color& Game::ClickableStyleNode<T>::NODE_COLOR()
@@ -339,7 +350,7 @@ const sf::Color& Game::Node::AVAILABILITY_COLOR()
 template<typename T>
 float Game::ClickableStyleNode<T>::OUTLINE_THICKNESS()
 {
-	return T::_OUTLINE_THICKNESS();
+	return T::_OUTLINE_THICKNESS;
 }
 
 template<typename T>
@@ -370,7 +381,7 @@ void Game::initialize_game(size_t sl)
 	empty_adjacent = new AdjacentSet();
 	Node::initialize_nodes();
 	Button::initialize_buttons();
-	std::sort(UI->begin(), UI->end(), clickable_comp_x);
+	//sort (UI->begin(), UI->end(), &Game::clickable_comp_x);
 	pos_tree = new PositionTree();
 }
 
@@ -416,7 +427,6 @@ bool Game::start_game()
 		if (ready_button->is_pressed())
 		{
 			ready_button->set_released();
-			set_buttons_invisible();
 			mouse_click_events->disable();
 			mouse_move_events->disable();
 		}
@@ -454,7 +464,7 @@ void Game::move(size_t i, size_t j)
 {
 	if (table[i][j] != empty_node)
 	{
-		table[i][j]->try_move();
+		table[i][j]->click();
 		if (table[i][j] != empty_node)
 			table[i][j]->set_default_outline();
 	}
@@ -487,20 +497,13 @@ void Game::click_process()
 	while (window->isOpen())
 	{
 		const sf::Event& e = mouse_click_events->pop();
-		for (Button* t : buttons)
-			if (t->contains(e.mouseButton.x, e.mouseButton.y))
-			{
-				t->set_pressed();
-				break;
-			}
+		Clickable* node = pos_tree->match(e.mouseButton.x, e.mouseButton.y);
 
-		Node* node = pos_tree->match(e.mouseButton.x, e.mouseButton.y);
-
-		if (node && node != empty_node)
+		if (node && node->is_active())
 		{
 			mouse_click_events->disable();
 			mouse_move_events->disable();
-			node->try_move();
+			node->click();
 			mouse_move_events->enable();
 
 			sf::Event e;
@@ -533,7 +536,7 @@ void Game::Button::initialize_buttons()
 		button_position.y = padding + table_side_size - table_side_size * 0.0875;
 	}
 
-	ready_button = create_clickable<Button>(button_size, button_position, "S"); //S means Solve
+	ready_button = create_clickable<Button>(button_size, button_size, button_position, "S"); //S means Solve
 	buttons[0] = ready_button;
 
 	if (window_height < window_width)
@@ -547,7 +550,7 @@ void Game::Button::initialize_buttons()
 		button_position.y = padding + table_side_size * 0.0125;
 	}
 
-	reset_button = create_clickable<Button>(button_size, button_position, "R"); //R means Reset
+	reset_button = create_clickable<Button>(button_size, button_size, button_position, "R"); //R means Reset
 	buttons[1] = reset_button;
 }
 
@@ -562,11 +565,6 @@ bool Game::check_buttons(const sf::Event& event)
 	return false;
 }
 
-void Game::set_buttons_invisible()
-{
-	for(Button* b: buttons)
-		b->visible = false;
-}
 
 void Game::reset()
 {
@@ -645,11 +643,7 @@ Game::Clickable* Game::PositionTree::match(float x, float y)
 	if (x_index == -1)
 		return nullptr;
 
-	int y_index = get_index_y(y, 0, tree.at(x_index).second.size(), tree.at(x_index).second);
-	if (y_index == -1)
-		return nullptr;
-
-	return table[x_index][y_index];
+	return get_index_y(y, 0, tree.at(x_index).second.size(), tree.at(x_index).second);
 }
 
 Game::PositionTree::PositionTree()
@@ -665,16 +659,16 @@ Game::PositionTree::PositionTree()
 			break;
 
 		if (t->position.x + t->size.x > temp_clickable->position.x)
-			(*tree.end()).second.push_back(t);
+			tree.back().second.push_back(t);
 	}
 
-	std::sort((*tree.end()).second.begin(), (*tree.end()).second.end(), clickable_comp_y);
+	std::sort(tree.back().second.begin(), tree.back().second.end(), &Game::clickable_comp_y);
 
 	for (auto i = ++UI->cbegin(); i != UI->cend(); ++i)
 	{
 		temp_clickable = *i;
 		tree.emplace_back();
-		(*tree.end()).first = temp_clickable->position.x;
+		tree.back().first = temp_clickable->position.x;
 
 		for (const Clickable* t : *UI)
 		{
@@ -682,10 +676,10 @@ Game::PositionTree::PositionTree()
 				break;
 
 			if (t->position.x + t->size.x > temp_clickable->position.x)
-				(*tree.end()).second.push_back(t);
+				tree.back().second.push_back(t);
 		}
 		
-		std::sort((*tree.end()).second.begin(), (*tree.end()).second.end(), clickable_comp_y);
+		//std::sort(tree.back().second.begin(), tree.back().second.end(), &Game::clickable_comp_y);
 	}
 }
 
@@ -708,7 +702,7 @@ int Game::PositionTree::get_index_x(float pos, int a, int b)
 Game::Clickable* Game::PositionTree::get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec)
 {
 	if (a >= b)
-		return ;
+		return const_cast<Clickable*>(x_vec.at(a));
 
 	int m = (a + b) / 2;
 
@@ -717,7 +711,7 @@ Game::Clickable* Game::PositionTree::get_index_y(float pos, int a, int b, std::v
 	else if (pos > x_vec[m + 1]->position.y)
 		return get_index_y(pos, m + 1, b, x_vec);
 	else
-		return m;
+		return const_cast<Clickable*>(x_vec.at(m));
 }
 
 Game::Node::Animation::Animation(std::string expr_x, std::string expr_y, float t1, float t2) : step_count{ static_cast<size_t>((t2 - t1) / one_step_t + 1) }
@@ -781,7 +775,7 @@ Game::Button::Button(float button_size_x, float button_size_y, sf::Vector2f pos,
 
 void Game::Button::draw(sf::RenderWindow & window) const
 {
-	if (!visible)
+	if (!active)
 		return;
 
 	draw(window);
@@ -818,13 +812,13 @@ void Game::Clickable::select()
 	}
 
 	BEGIN_INTERACTION(this);
-	post_callback();
+	//post_callback();
 	END_INTERACTION(this);
 }
 
 void Game::Button::set_pressed()
 {
-	if (pressed || !visible)
+	if (pressed || !active)
 		return;
 
 	pressed = true;
@@ -846,6 +840,11 @@ void Game::Button::set_released()
 bool Game::Button::is_pressed()
 {
 	return pressed;
+}
+
+void Game::Button::ON_CLICK()
+{
+	set_pressed();
 }
 
 std::function<void()> Game::Button::SELECT_ADDITION()
