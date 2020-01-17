@@ -6,7 +6,7 @@
 #include <functional>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
-//#include <SFML/Graphics/Color.hpp>
+//#include <SFML/Graphics/Color.hpp>÷
 #include "Solver.h"
 
 //Predeclaration
@@ -141,7 +141,6 @@ class Game
 		std::condition_variable press_condition;
 
 		Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable);
-		void draw(sf::RenderWindow& window) const override;
 		void set_pressed();
 		void set_released();
 		bool is_pressed();
@@ -212,8 +211,8 @@ class Game
 
 	};
 
-	static bool clickable_comp_x(const const Clickable*& a, const const Clickable*& b);
-	static bool clickable_comp_y(const const Clickable*& a, const const Clickable*& b);
+	static bool clickable_comp_x(const Clickable* a, const Clickable* b);
+	static bool clickable_comp_y(const Clickable* a, const Clickable* b);
 
 
 

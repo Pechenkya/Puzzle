@@ -1,7 +1,7 @@
 ﻿#include "Game.h"
 
 #include "ExpressionParser.h"
-#include "Sort.h"
+//#include "Sort.h"
 
 #include <algorithm>
 #include <iostream>
@@ -16,14 +16,15 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
-#define BEGIN_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.lock()
+#define BEGIN_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.lock();
 
-#define END_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.unlock()
+#define END_INTERACTION(NODE_POINTER) NODE_POINTER->interaction_mutex.unlock();
 
 #define INTERACTION_RETURN(RETURN_TOKEN)    \
-this->interaction_mutex.unlock();			\
-return RETURN_TOKEN							\
-
+{											\
+	this->interaction_mutex.unlock();		\
+	return RETURN_TOKEN;					\
+}                                           \
 
 //Style parameters
 const sf::Color Game::Node::_AVAILABILITY_COLOR = sf::Color(255, 173, 51);
@@ -37,6 +38,7 @@ const sf::Color Game::ClickableStyleNode<T>::_NODE_COLOR = sf::Color(211, 211, 2
 template<typename T>
 float Game::ClickableStyleNode<T>::_OUTLINE_THICKNESS = 5.f;
 
+const sf::Color Game::Button::_OUTLINE_COLOR = sf::Color(0, 211, 211);
 float Game::Button::_OUTLINE_THICKNESS = 5.f;
 sf::Font Game::FONT;
 static const sf::Color BG_COLOR = sf::Color::Black;
@@ -77,7 +79,7 @@ Game::Button* Game::buttons[2] = { nullptr };
 //
 
 
-bool Game::clickable_comp_x(const const Clickable*& a, const const Clickable*& b)
+bool Game::clickable_comp_x(const Clickable* a, const Clickable* b)
 {
 	if (a->position.x < b->position.x)
 		return true;
@@ -88,7 +90,7 @@ bool Game::clickable_comp_x(const const Clickable*& a, const const Clickable*& b
 }
 
 
-bool Game::clickable_comp_y(const const Clickable*& a, const const Clickable*& b)
+bool Game::clickable_comp_y(const Clickable* a, const Clickable* b)
 {
 	if (a->position.y < b->position.y)
 		return true;
@@ -117,7 +119,7 @@ Game::Node::~Node()
 
 void Game::Node::try_move()
 {
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 
 	rectangle->setOutlineThickness(0.f);
 
@@ -134,24 +136,24 @@ void Game::Node::try_move()
 
 	if (is_adjacent)
 		prev_node = swap_with_empty();
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 
 	prev_node->play_animation(*animations[prev_node->i - i + 1][prev_node->j - j + 1]);
 
 	for (Node* t : get_adjacent())
 	{
-		BEGIN_INTERACTION(t);
+		BEGIN_INTERACTION(t)
 		t->rectangle->setOutlineColor(AVAILABILITY_COLOR());
 		t->rectangle->setOutlineThickness(OUTLINE_THICKNESS());
-		END_INTERACTION(t);
+		END_INTERACTION(t)
 	}
 
 	if (!is_adjacent)
 	{
-		BEGIN_INTERACTION(prev_node);
+		BEGIN_INTERACTION(prev_node)
 		prev_node->rectangle->setOutlineColor(OUTLINE_COLOR());
 		prev_node->rectangle->setOutlineThickness(OUTLINE_THICKNESS());
-		END_INTERACTION(prev_node);
+		END_INTERACTION(prev_node)
 	}
 }
 
@@ -256,10 +258,10 @@ void Game::Node::initialize_nodes()
 	update_empty_adj();
 	for (Node* t : get_adjacent())
 	{
-		BEGIN_INTERACTION(t);
+		BEGIN_INTERACTION(t)
 		t->rectangle->setOutlineColor(AVAILABILITY_COLOR());
 		t->rectangle->setOutlineThickness(OUTLINE_THICKNESS());
-		END_INTERACTION(t);
+		END_INTERACTION(t)
 	}
 }
 
@@ -270,7 +272,7 @@ void Game::Node::reset_nodes()
 	for (int k = 0; k < side_length * side_length - 1; k++)
 	{
 		Node* n = table[k % side_length][k / side_length];
-		BEGIN_INTERACTION(n);
+		BEGIN_INTERACTION(n)
 		delete n->text;
 		n->text = new sf::Text(sf::String(std::to_string(k + 1)), FONT);
 		n->text->setPosition(n->text_position);
@@ -283,26 +285,26 @@ void Game::Node::reset_nodes()
 		n->rectangle->setOutlineColor(OUTLINE_COLOR());
 		n->rectangle->setOutlineThickness(0.f);
 		n->value = k + 1;
-		END_INTERACTION(n);
+		END_INTERACTION(n)
 	}
 
 	Node* n = table[side_length - 1][side_length - 1];
-	BEGIN_INTERACTION(n);
+	BEGIN_INTERACTION(n)
 	delete n->rectangle;
 	n->rectangle = nullptr;
 	delete n->text;
 	n->text = nullptr;
 	n->value = side_length * side_length;
-	END_INTERACTION(n);
+	END_INTERACTION(n)
 	empty_node = n;
 
 	//update_empty_adj();
 	for (Node* t : get_adjacent())
 	{
-		BEGIN_INTERACTION(t);
+		BEGIN_INTERACTION(t)
 		t->rectangle->setOutlineColor(AVAILABILITY_COLOR());
 		t->rectangle->setOutlineThickness(OUTLINE_THICKNESS());
-		END_INTERACTION(t);
+		END_INTERACTION(t)
 	}
 }
 
@@ -313,7 +315,7 @@ bool Game::Clickable::is_active() const
 
 void Game::Clickable::draw(sf::RenderWindow & window) const
 {
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 
 	if (rectangle && text)
 	{
@@ -321,7 +323,7 @@ void Game::Clickable::draw(sf::RenderWindow & window) const
 		window.draw(*text);
 	}
 
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 }
 
 void Game::Clickable::click()
@@ -381,6 +383,7 @@ void Game::initialize_game(size_t sl)
 	empty_adjacent = new AdjacentSet();
 	Node::initialize_nodes();
 	Button::initialize_buttons();
+	UI->sort(&Game::clickable_comp_x);
 	//sort (UI->begin(), UI->end(), &Game::clickable_comp_x);
 	pos_tree = new PositionTree();
 }
@@ -587,21 +590,21 @@ int** Game::represent_to_int()
 
 sf::Event Game::EventQueue::pop()
 {
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 	bool empty = events.empty();
 
 	if (empty)
 	{
-		END_INTERACTION(this);
+		END_INTERACTION(this)
 		ql.lock();
 		qcv.wait(ql);
-		BEGIN_INTERACTION(this);
+		BEGIN_INTERACTION(this)
 	}
 
 	sf::Event event = events.back();
 	events.pop_back();
 
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 
 	if (empty)
 		ql.unlock();
@@ -611,30 +614,31 @@ sf::Event Game::EventQueue::pop()
 
 void Game::EventQueue::push(const sf::Event & event)
 {
-	BEGIN_INTERACTION(this);
-	if (!enabled) { INTERACTION_RETURN(); }
+	BEGIN_INTERACTION(this)
+	if (!enabled) 
+		INTERACTION_RETURN()
 
 	bool empty = events.empty();
 	events.push_front(event);
 	if (empty)
 		qcv.notify_all();
 
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 }
 
 void Game::EventQueue::disable()
 {
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 	enabled = false;
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 }
 
 void Game::EventQueue::enable()
 {
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 	enabled = true;
 	events.clear();
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 }
 
 Game::Clickable* Game::PositionTree::match(float x, float y)
@@ -651,7 +655,7 @@ Game::PositionTree::PositionTree()
 
 	const Clickable* temp_clickable = *UI->cbegin();
 	tree.emplace_back();
-	(*tree.end()).first = temp_clickable->position.x;
+	tree.back().first = temp_clickable->position.x;
 
 	for (const Clickable* t : *UI)
 	{
@@ -773,13 +777,6 @@ Game::Button::Button(float button_size_x, float button_size_y, sf::Vector2f pos,
 	rectangle->setOutlineColor(OUTLINE_COLOR());
 }
 
-void Game::Button::draw(sf::RenderWindow & window) const
-{
-	if (!active)
-		return;
-
-	draw(window);
-}
 
 bool Game::Clickable::contains(const float & pos_x, const float & pos_y) const
 {
@@ -789,31 +786,32 @@ bool Game::Clickable::contains(const float & pos_x, const float & pos_y) const
 
 void Game::Clickable::select()
 {
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 	auto post_callback = SELECT_ADDITION();
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 
 
 	while (window->isOpen())
 	{
 		const sf::Event& e = mouse_move_events->pop();
 
-		BEGIN_INTERACTION(this);
+		BEGIN_INTERACTION(this)
 
-		if (!active) { INTERACTION_RETURN(); }
+		if (!active) 
+			INTERACTION_RETURN()
 
 		if (!contains(e.mouseMove.x, e.mouseMove.y))
 		{
-			END_INTERACTION(this);
+			END_INTERACTION(this)
 			break;
 		}
 
-		END_INTERACTION(this);
+		END_INTERACTION(this)
 	}
 
-	BEGIN_INTERACTION(this);
-	//post_callback();
-	END_INTERACTION(this);
+	BEGIN_INTERACTION(this)
+	post_callback();
+	END_INTERACTION(this)
 }
 
 void Game::Button::set_pressed()
@@ -822,13 +820,13 @@ void Game::Button::set_pressed()
 		return;
 
 	pressed = true;
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 	rectangle->setOutlineThickness(0.f);
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 	std::this_thread::sleep_for(std::chrono::milliseconds(50));
-	BEGIN_INTERACTION(this);
+	BEGIN_INTERACTION(this)
 	rectangle->setOutlineThickness(OUTLINE_THICKNESS());
-	END_INTERACTION(this);
+	END_INTERACTION(this)
 	press_condition.notify_one();
 }
 
