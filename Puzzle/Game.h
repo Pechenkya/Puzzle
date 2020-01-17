@@ -141,12 +141,14 @@ class Game
 		std::condition_variable press_condition;
 
 		Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable);
+		~Button();
 		void set_pressed();
 		void set_released();
 		bool is_pressed();
 
 
 		static void initialize_buttons();
+		static void deactivate_buttons();
 
 		// Default Button object style (can be overriden in derived classes)
 		static const sf::Color _OUTLINE_COLOR;
@@ -203,7 +205,6 @@ class Game
 	{
 		Clickable* match(float x, float y);
 		PositionTree();
-		~PositionTree();
 	private:
 		std::vector<std::pair<float, std::vector<const Clickable*>>> tree;
 		int get_index_x(float pos, int a, int b);
@@ -219,16 +220,13 @@ class Game
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
-
+	static void clear(); //TODO
 	
 	static void solve_game();
 
 	//Computer control
 	
 	static void move(size_t i, size_t j);
-	// TODO get_table()
-	// TODO bool solved() ?
-	//
 
 private:
 	//Base game propeties
@@ -245,6 +243,7 @@ private:
 	//Drawing thread resources
 	static sf::Font FONT;
 	static sf::RenderWindow* window;
+	static std::mutex window_mutex;
 	static PositionTree* pos_tree;
 	static EventQueue* mouse_move_events;
 	static EventQueue* mouse_click_events;
@@ -273,6 +272,7 @@ private:
 
 	static bool check_buttons(const sf::Event& event);
 
+	static void restart_threads();
 	static void reset();
 	//
 

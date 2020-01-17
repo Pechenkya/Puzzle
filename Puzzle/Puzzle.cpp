@@ -5,7 +5,11 @@
 
 int main()
 {
-	Game::initialize_game();
-	Game::start_game();
+	while (true)
+	{
+		Game::initialize_game();
+		Game::start_game();
+		Game::clear();
+	}
 	return 0;
 }

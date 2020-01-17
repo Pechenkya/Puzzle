@@ -267,7 +267,8 @@ std::vector<std::pair<int, int>> Solver::solution()
 
 Solver::~Solver()
 {
-	delete result_board;
+	if(result_board->moves_made != 0)
+		delete result_board;
 }
 
 void Solver::swap(int& a, int& b)
