@@ -6,7 +6,7 @@
 #include <functional>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
-//#include <SFML/Graphics/Color.hpp>÷
+//#include <SFML/Graphics/Color.hpp>ï¿½
 #include "Solver.h"
 
 //Predeclaration
@@ -48,7 +48,7 @@ class Game
 		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
 		virtual void ON_CLICK() = 0;
 	public:
-		Clickable(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
+		Clickable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
 
 		const sf::Vector2f size;
 		const sf::Vector2f position;
@@ -207,7 +207,7 @@ class Game
 	private:
 		std::vector<std::pair<float, std::vector<const Clickable*>>> tree;
 		int get_index_x(float pos, int a, int b);
-		Clickable* get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec);
+		Clickable* get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec, float x_pos);
 
 	};
 

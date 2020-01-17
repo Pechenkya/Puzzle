@@ -100,12 +100,23 @@ bool Game::clickable_comp_y(const Clickable* a, const Clickable* b)
 
 std::function<void()> Game::Node::SELECT_ADDITION()
 {
-	return std::function<void()>();
+	sf::Color default_color = rectangle->getOutlineColor();
+	float default_thickness = rectangle->getOutlineThickness();
+	sf::RectangleShape* rect = rectangle;
+
+	rect->setOutlineColor(OUTLINE_COLOR());
+	rect->setOutlineThickness(OUTLINE_THICKNESS());
+
+	return [rect, default_color, default_thickness]()
+	{
+		rect->setOutlineColor(default_color);
+		rect->setOutlineThickness(default_thickness);
+	};
 }
 
-Game::Node::Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos) : i{ _i }, j{ _j }, value { _j * side_length + _i + size_t{ 1 } },
-	Game::ClickableStyleNode<Node>{ sf::Text(sf::String(std::to_string(value)), FONT), sf::Vector2f(node_size, node_size),
-	pos, sf::Vector2f(pos.x + node_size / size_t{ 3 }, pos.y + node_size / size_t{ 3 }) }
+Game::Node::Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos) :
+	Game::ClickableStyleNode<Node>{ sf::Text(sf::String(std::to_string(_j * side_length + _i + size_t{ 1 })), FONT), sf::Vector2f(node_size, node_size),
+	pos, sf::Vector2f(pos.x + node_size / size_t{ 3 }, pos.y + node_size / size_t{ 3 }) }, i{ _i }, j{ _j }, value{ _j * side_length + _i + size_t{ 1 } }
 {
 	rectangle->setFillColor(NODE_COLOR());
 	rectangle->setOutlineColor(OUTLINE_COLOR());
@@ -643,36 +654,30 @@ void Game::EventQueue::enable()
 
 Game::Clickable* Game::PositionTree::match(float x, float y)
 {
-	int x_index = get_index_x(x, 0, tree.size());
+	int x_index = get_index_x(x, 0, tree.size() - 1);
 	if (x_index == -1)
 		return nullptr;
 
-	return get_index_y(y, 0, tree.at(x_index).second.size(), tree.at(x_index).second);
+	return get_index_y(y, 0, tree.at(x_index).second.size() - 1, tree.at(x_index).second, x);
 }
 
 Game::PositionTree::PositionTree()
 {
+	std::list<Clickable*>* list = UI;
+	const Clickable* temp_clickable = nullptr;
 
-	const Clickable* temp_clickable = *UI->cbegin();
-	tree.emplace_back();
-	tree.back().first = temp_clickable->position.x;
+	float t = -1.f;
 
-	for (const Clickable* t : *UI)
-	{
-		if (t->position.x > temp_clickable->position.x)
-			break;
-
-		if (t->position.x + t->size.x > temp_clickable->position.x)
-			tree.back().second.push_back(t);
-	}
-
-	std::sort(tree.back().second.begin(), tree.back().second.end(), &Game::clickable_comp_y);
-
-	for (auto i = ++UI->cbegin(); i != UI->cend(); ++i)
+	for (auto i = UI->cbegin(); i != UI->cend(); ++i)
 	{
 		temp_clickable = *i;
+
+		if (temp_clickable->position.x == t)
+			continue;
+
 		tree.emplace_back();
 		tree.back().first = temp_clickable->position.x;
+		t = temp_clickable->position.x;
 
 		for (const Clickable* t : *UI)
 		{
@@ -682,8 +687,8 @@ Game::PositionTree::PositionTree()
 			if (t->position.x + t->size.x > temp_clickable->position.x)
 				tree.back().second.push_back(t);
 		}
-		
-		//std::sort(tree.back().second.begin(), tree.back().second.end(), &Game::clickable_comp_y);
+
+		std::sort(tree.back().second.begin(), tree.back().second.end(), &Game::clickable_comp_y);
 	}
 }
 
@@ -691,7 +696,12 @@ Game::PositionTree::PositionTree()
 int Game::PositionTree::get_index_x(float pos, int a, int b)
 {
 	if (a >= b)
-		return a;
+	{
+		if (b < 0)
+			return -1;
+		else
+			return a;
+	}
 
 	int m = (a + b) / 2;
 
@@ -703,19 +713,31 @@ int Game::PositionTree::get_index_x(float pos, int a, int b)
 		return m;
 }
 
-Game::Clickable* Game::PositionTree::get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec)
+Game::Clickable* Game::PositionTree::get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec, float x_pos)
 {
 	if (a >= b)
-		return const_cast<Clickable*>(x_vec.at(a));
+	{
+		if (b < 0)
+			return nullptr;
+		else if (x_vec.at(a)->contains(x_pos, pos))
+			return const_cast<Clickable*>(x_vec.at(a));
+		else
+			return nullptr;
+	}
 
 	int m = (a + b) / 2;
 
 	if (pos < x_vec[m]->position.y)
-		return get_index_y(pos, a, m - 1, x_vec);
+		return get_index_y(pos, a, m - 1, x_vec, x_pos);
 	else if (pos > x_vec[m + 1]->position.y)
-		return get_index_y(pos, m + 1, b, x_vec);
+		return get_index_y(pos, m + 1, b, x_vec, x_pos);
 	else
-		return const_cast<Clickable*>(x_vec.at(m));
+	{
+		if (x_vec.at(m)->contains(x_pos, pos))
+			return const_cast<Clickable*>(x_vec.at(m));
+		else
+			return nullptr;
+	}
 }
 
 Game::Node::Animation::Animation(std::string expr_x, std::string expr_y, float t1, float t2) : step_count{ static_cast<size_t>((t2 - t1) / one_step_t + 1) }
@@ -855,14 +877,14 @@ std::function<void()> Game::Button::SELECT_ADDITION()
 	rect->setOutlineThickness(OUTLINE_THICKNESS());
 
 	return [rect, default_color, default_thickness]()
-		{
-			rect->setOutlineColor(default_color);
-			rect->setOutlineThickness(default_thickness);
-		};
+	{
+		rect->setOutlineColor(default_color);
+		rect->setOutlineThickness(default_thickness);
+	};
 }
 
-Game::Clickable::Clickable(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos)
-	: position{ pos }, text_position{ text_pos }
+Game::Clickable::Clickable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos)
+	: position{ pos }, text_position{ text_pos }, size{_size}
 {
 	{
 		rectangle = new sf::RectangleShape(size);
