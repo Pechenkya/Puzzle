@@ -251,6 +251,11 @@ void Solver::solve()
 	}
 }
 
+int Solver::moves_made()
+{
+	return result_board->moves_made;
+}
+
 std::vector<std::pair<int, int>> Solver::solution()
 {
 	std::vector<std::pair<int, int>> solution;

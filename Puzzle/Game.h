@@ -6,7 +6,6 @@
 #include <functional>
 #include <condition_variable>
 #include <SFML/Window/Event.hpp>
-//#include <SFML/Graphics/Color.hpp>�
 #include "Solver.h"
 
 //Predeclaration
@@ -28,14 +27,14 @@ namespace sf
 		class T1,
 		class T2
 	> struct pair;
-
-
 }
 //
 
 class Game
 {
-	struct Clickable
+	struct UserInterface;
+
+	struct Drawable
 	{
 	protected:
 		sf::RectangleShape* rectangle;
@@ -44,11 +43,9 @@ class Game
 		mutable std::mutex interaction_mutex;
 
 		bool active;
-
-		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
-		virtual void ON_CLICK() = 0;
 	public:
-		Clickable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
+
+		Drawable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
 
 		const sf::Vector2f size;
 		const sf::Vector2f position;
@@ -56,10 +53,27 @@ class Game
 
 		virtual bool is_active() const;
 		virtual bool contains(const float& pos_x, const float& pos_y) const;
-		virtual void select();
+
 		virtual void draw(sf::RenderWindow& window) const;
+	};
+
+	struct Clickable : Drawable
+	{
+	protected:
+
+		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
+		const std::function<void(Clickable*)> ON_CLICK;
+	public:
+		Clickable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos, const std::function<void(Clickable*)> f);
+
+		virtual void select();
 
 		void click();
+
+		virtual void set_default_style() = 0;
+
+		void deactivate();
+		void activate();
 	};
 
 	template<typename T>
@@ -78,13 +92,12 @@ class Game
 		static float _OUTLINE_THICKNESS;
 		//
 
-		void set_default_outline();
+		void set_default_style() override;
 
-		ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
+		ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos, const std::function<void(Clickable*)> f);
 
 	protected:
 		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
-		virtual void ON_CLICK() = 0;
 
 	};
 
@@ -99,7 +112,7 @@ class Game
 			std::pair<sf::Vector2f, float>* movement_table;
 			const size_t step_count;
 		};
-
+		
 		void play_animation(const Animation& animation);
 		Node* swap_with_empty();
 		
@@ -109,7 +122,6 @@ class Game
 	protected:
 		std::function<void()> SELECT_ADDITION() override;
 		void try_move();
-		void ON_CLICK() override;
 
 	public:
 		size_t value;
@@ -119,8 +131,9 @@ class Game
 		~Node();
 
 
-		static void initialize_nodes();
+		static void initialize_nodes(std::list<Clickable*>* UI);
 		static void reset_nodes();
+		static void set_adjasents();
 
 		// Polymorphic style getters
 		static const sf::Color& AVAILABILITY_COLOR();
@@ -133,30 +146,25 @@ class Game
 
 	struct Button : public ClickableStyleNode<Button>
 	{
-	private:
-		bool pressed = false;
 	public:
-		std::mutex press_mutex;
-		std::unique_lock<std::mutex> press_lock{ press_mutex, std::defer_lock };
-		std::condition_variable press_condition;
-
-		Button(float button_size_x, float button_size_y, sf::Vector2f pos, std::string lable);
+		Button(float button_size_x, float button_size_y, const sf::Vector2f& pos, std::string lable, const std::function<void(Clickable*)> f);
 		~Button();
+
 		void set_pressed();
-		void set_released();
-		bool is_pressed();
 
-
-		static void initialize_buttons();
+		static void initialize_buttons(std::list<Clickable*>* UI);
 		static void deactivate_buttons();
+		static void activate_buttons();
 
 		// Default Button object style (can be overriden in derived classes)
 		static const sf::Color _OUTLINE_COLOR;
 		static float _OUTLINE_THICKNESS;
 		//
 
+		static float game_outline_thickness;
+		static float menu_outline_thickness;
+
 	protected:
-		void ON_CLICK() override;
 		std::function<void()> SELECT_ADDITION() override;
 	};
 
@@ -203,19 +211,42 @@ class Game
 
 	struct PositionTree
 	{
-		Clickable* match(float x, float y);
-		PositionTree();
+		Clickable* match(float x, float y) const;
+		PositionTree(const std::list<Clickable*>* UI);
 	private:
 		std::vector<std::pair<float, std::vector<const Clickable*>>> tree;
-		int get_index_x(float pos, int a, int b);
-		Clickable* get_index_y(float pos, int a, int b, std::vector<const Clickable*>& x_vec, float x_pos);
+		int get_index_x(float pos, int a, int b) const;
+		Clickable* get_index_y(float pos, int a, int b, const std::vector<const Clickable*>& x_vec, float x_pos) const;
+
+	};
+
+	struct UserInterface
+	{
+		std::list <Clickable*>* UI;
+		PositionTree* pos_tree;
+
+		UserInterface(std::list <Clickable*>* _UI);
+		~UserInterface();
+
+		void deactivate();
+		void activate();
+		void draw(sf::RenderWindow& window) const;
+	};
+
+	struct Lable
+	{
+		bool active;
+		sf::Text* text;
+
+		Lable();
+		Lable(const sf::Vector2f& pos, const std::string& caption);
+		void set_caption(const std::string& caption);
+		void draw(sf::RenderWindow& window) const;
 
 	};
 
 	static bool clickable_comp_x(const Clickable* a, const Clickable* b);
 	static bool clickable_comp_y(const Clickable* a, const Clickable* b);
-
-
 
 public:
 	static void initialize_game(size_t sl = 4);
@@ -229,22 +260,31 @@ public:
 	static void move(size_t i, size_t j);
 
 private:
+	static UserInterface* active_UI;
+
+	//Main menu
+	static void initialize_menu();
+
+	static UserInterface* menu_UI;
+	//
+
+
 	//Base game propeties
 	static const float window_width;
 	static const float window_height;
 	static size_t side_length;
 
-	static int score_counter;
+	static Lable* last_score;
+	static int move_counter;
 	//
 
 	static Node*** table; // I tut ya zvezdanulsya
-	static std::list<Clickable*>* UI;
+	static UserInterface* game_UI;
 
 	//Drawing thread resources
 	static sf::Font FONT;
 	static sf::RenderWindow* window;
 	static std::mutex window_mutex;
-	static PositionTree* pos_tree;
 	static EventQueue* mouse_move_events;
 	static EventQueue* mouse_click_events;
 	static AdjacentSet* empty_adjacent;
@@ -262,19 +302,16 @@ private:
 	static void click_process(); //separate thread
 	//
 
-	//UI
-	static Button* ready_button;
-	static Button* reset_button;
-	static Button* buttons[2];
-
-	template<typename T, typename ...ArgsT>
-	static T* create_clickable(ArgsT&&... args);
-
+	//Game UI
+	static std::list<Button*>* buttons;
 	static bool check_buttons(const sf::Event& event);
 
 	static void restart_threads();
 	static void reset();
 	//
+
+	template<typename T, typename ...ArgsT>
+	static T* create_clickable(std::list<Clickable*>* UI_list, ArgsT&&... args);
 
 	//Solver help methods
 	static int** represent_to_int();
@@ -283,9 +320,9 @@ private:
 
 //Zabiv
 template<typename T, typename ...ArgsT>
-T* Game::create_clickable(ArgsT&& ...args)
+T* Game::create_clickable(std::list<Clickable*>* UI_list, ArgsT&& ...args)
 {
 	Clickable* new_obj = new T(std::forward<ArgsT>(args)...);
-	UI->push_back(new_obj);
+	UI_list->push_back(new_obj);
 	return static_cast<T*>(new_obj);
 }

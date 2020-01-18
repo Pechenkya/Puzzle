@@ -47,6 +47,7 @@ public:
 public:
 	Solver(int** _titles, int _dimention);
 	void solve();
+	int moves_made();
 	std::vector<std::pair<int, int>> solution();
 	~Solver();
 

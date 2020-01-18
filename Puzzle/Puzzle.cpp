@@ -7,7 +7,7 @@ int main()
 {
 	while (true)
 	{
-		Game::initialize_game();
+		Game::initialize_game(4);
 		Game::start_game();
 		Game::clear();
 	}
