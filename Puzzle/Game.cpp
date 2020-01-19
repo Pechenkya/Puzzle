@@ -596,6 +596,7 @@ void Game::Button::initialize_buttons(std::list<Clickable*>* UI)
 	buttons->push_back(
 		create_clickable<Button>(UI, button_size_x, button_size_y, button_position, "Menu", [](Clickable* t) {
 		Button* b = dynamic_cast<Button*>(t);
+		b->set_pressed();
 		menu_UI->activate();
 		game_UI->deactivate();
 		Button::_SELECTED_STYLE.outline_thickness = Button::menu_outline_thickness;
@@ -607,6 +608,7 @@ void Game::Button::initialize_buttons(std::list<Clickable*>* UI)
 	buttons->push_back(
 		create_clickable<Button>(UI, button_size_x, button_size_y, button_position, "Reset", [](Clickable* t) {
 		Button* b = dynamic_cast<Button*>(t);
+		b->set_pressed();
 		active_UI->deactivate();
 		reset();
 		active_UI->activate();
@@ -617,6 +619,7 @@ void Game::Button::initialize_buttons(std::list<Clickable*>* UI)
 	buttons->push_back(
 		create_clickable<Button>(UI, button_size_x, button_size_y, button_position, "Solve", [](Clickable* t) {
 		Button* b = dynamic_cast<Button*>(t);
+		b->set_pressed();
 		active_UI->deactivate();
 		solve_game();
 		active_UI->activate();
