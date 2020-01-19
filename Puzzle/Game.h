@@ -5,7 +5,10 @@
 #include <list>
 #include <functional>
 #include <condition_variable>
+
 #include <SFML/Window/Event.hpp>
+#include <SFML/Graphics/Color.hpp>
+
 #include "Solver.h"
 
 //Predeclaration
@@ -37,43 +40,86 @@ class Game
 	struct Drawable
 	{
 	protected:
+		sf::Vector2f position;
+		const sf::Vector2f rect_position; // relative
+		const sf::Vector2f text_position; // relative
+
 		sf::RectangleShape* rectangle;
 		sf::Text* text;
 
-		mutable std::mutex interaction_mutex;
-
-		bool active;
+		bool visible;
 	public:
 
 		Drawable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos);
+		~Drawable();
+
+		void set_position(const sf::Vector2f p);
+		bool is_visible() const;
+		void set_visible(bool u_suq_dyq);
+		bool contains(const float& pos_x, const float& pos_y) const;
+
+		virtual void draw(sf::RenderWindow& window) const;
+
+		void set_text(const sf::String& t);
+
+		// Style
+		struct Style
+		{
+			float outline_thickness;
+			sf::Color outline_color;
+			sf::Color fill_color;
+		};
+
+		Style get_style();
+		void set_style(const Style& s);
+		//
+
+		// Animations
+		struct Animation
+		{
+			static const float one_step_t;
+
+			Animation(std::string expr_x, std::string expr_y, float t1, float t2);
+			std::vector<std::pair<const sf::Vector2f, float>> movement_table;
+			const size_t step_count;
+		};
+
+		void play_animation(const Drawable::Animation& animation);
+		//
+	};
+
+	struct Clickable
+	{
+	protected:
+		Drawable* drawable;
+
+		mutable std::mutex interaction_mutex;
+
+
+		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
+		virtual std::function<void()> CLICK_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
+
+		const std::function<void(Clickable*)> ON_CLICK;
+		bool active;
+	public:
+		Clickable(const sf::Vector2f& _size, const sf::Vector2f& pos, const std::function<void(Clickable*)> f, Drawable* d = nullptr);
+		~Clickable();
+
 
 		const sf::Vector2f size;
 		const sf::Vector2f position;
-		const sf::Vector2f text_position;
+
+
+		void select();
+		void click();
 
 		virtual bool is_active() const;
 		virtual bool contains(const float& pos_x, const float& pos_y) const;
 
 		virtual void draw(sf::RenderWindow& window) const;
-	};
 
-	struct Clickable : Drawable
-	{
-	protected:
-
-		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
-		const std::function<void(Clickable*)> ON_CLICK;
-	public:
-		Clickable(const sf::Text& caption, const sf::Vector2f& _size, const sf::Vector2f& pos, const sf::Vector2f& text_pos, const std::function<void(Clickable*)> f);
-
-		virtual void select();
-
-		void click();
-
-		virtual void set_default_style() = 0;
-
-		void deactivate();
-		void activate();
+		virtual void deactivate();
+		virtual void activate();
 	};
 
 	template<typename T>
@@ -81,46 +127,33 @@ class Game
 	{
 	public:
 		// Polymorphic style getters
-		static const sf::Color& NODE_COLOR();
-		static const sf::Color& OUTLINE_COLOR();
-		static float OUTLINE_THICKNESS();
+		static const Drawable::Style& DEFAULT_STYLE();
+		static const Drawable::Style& SELECTED_STYLE();
 		//
 
 		// Default clickable object style (can be overriden in derived classes)
-		static const sf::Color _NODE_COLOR;
-		static const sf::Color _OUTLINE_COLOR;
-		static float _OUTLINE_THICKNESS;
+		static Drawable::Style _DEFAULT_STYLE;
+		static Drawable::Style _SELECTED_STYLE;
 		//
 
-		void set_default_style() override;
-
-		ClickableStyleNode(const sf::Text& caption, const sf::Vector2f& size, const sf::Vector2f& pos, const sf::Vector2f& text_pos, const std::function<void(Clickable*)> f);
+		ClickableStyleNode(const sf::Vector2f& _size, const sf::Vector2f& pos, const std::function<void(Clickable*)> f, Drawable* d = nullptr);
 
 	protected:
 		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
-
+		virtual std::function<void()> CLICK_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
 	};
 
 	struct Node : public ClickableStyleNode<Node>
 	{
 	private:
-		struct Animation
-		{
-			static const float one_step_t;
-
-			Animation(std::string expr_x, std::string expr_y, float t1, float t2);
-			std::pair<sf::Vector2f, float>* movement_table;
-			const size_t step_count;
-		};
-		
-		void play_animation(const Animation& animation);
 		Node* swap_with_empty();
 		
 		// Animations
-		static const Animation* animations[3][3];
+		static const Drawable::Animation* animations[3][3];
 		//
 	protected:
 		std::function<void()> SELECT_ADDITION() override;
+		std::function<void()> CLICK_ADDITION() override;
 		void try_move();
 
 	public:
@@ -133,14 +166,13 @@ class Game
 
 		static void initialize_nodes(std::list<Clickable*>* UI);
 		static void reset_nodes();
-		static void set_adjasents();
 
 		// Polymorphic style getters
-		static const sf::Color& AVAILABILITY_COLOR();
+		static const Drawable::Style& AVAILABILITY_STYLE();
 		//
 
 		// Default Node object style (can be overriden in derived classes)
-		static const sf::Color _AVAILABILITY_COLOR;
+		static Drawable::Style _AVAILABILITY_STYLE;
 		//
 	};
 
@@ -157,15 +189,18 @@ class Game
 		static void activate_buttons();
 
 		// Default Button object style (can be overriden in derived classes)
-		static const sf::Color _OUTLINE_COLOR;
-		static float _OUTLINE_THICKNESS;
+		static Drawable::Style _SELECTED_STYLE;
 		//
 
 		static float game_outline_thickness;
 		static float menu_outline_thickness;
 
+		void deactivate() override;
+		void activate() override;
+
 	protected:
 		std::function<void()> SELECT_ADDITION() override;
+		std::function<void()> CLICK_ADDITION() override;
 	};
 
 	struct EventQueue
@@ -304,7 +339,6 @@ private:
 
 	//Game UI
 	static std::list<Button*>* buttons;
-	static bool check_buttons(const sf::Event& event);
 
 	static void restart_threads();
 	static void reset();

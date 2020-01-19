@@ -107,7 +107,6 @@ Solver::Board::Board(Board && obj)
 
 }
 
-
 int Solver::Board::get_dimension() const
 {
 	return this->dimension;
