@@ -44,6 +44,7 @@ const float animation_time = 0.4f;
 // Game static member
 Game::EventQueue* Game::mouse_move_events = nullptr;
 Game::EventQueue* Game::mouse_click_events = nullptr;
+Game::EventQueue* Game::key_events = nullptr;
 Game::AdjacentSet* Game::empty_adjacent = nullptr;
 
 const float Game::Drawable::Animation::one_step_t = 0.008f;
@@ -57,6 +58,8 @@ int Game::move_counter = 0;
 Game::Node*** Game::table = nullptr;
 size_t Game::side_length;
 Game::Node* Game::empty_node = nullptr;
+Game::Node* Game::last_selected_node = nullptr;
+Game::Drawable::Style Game::last_selected_style;
 //
 
 //Window parameters
@@ -95,11 +98,24 @@ std::function<void()> Game::Node::SELECT_ADDITION()
 {
 	Drawable::Style s = drawable->get_style();
 	Drawable* d = drawable;
+	
+	if (last_selected_node != this)
+	{
+		selected = true;
+		last_selected_node->selected = false;
+		last_selected_node->drawable->set_style(last_selected_style);
+		last_selected_node = this;
+		last_selected_style = s;
+	}
+	else
+		s = last_selected_style;
 
 	drawable->set_style(SELECTED_STYLE());
+	
 
-	return [d, s]()
+	return [this, d, s]()
 	{
+		this->selected = false;
 		d->set_style(s);
 	};
 }
@@ -119,8 +135,10 @@ std::function<void()> Game::Node::CLICK_ADDITION()
 			t->drawable->set_style(AVAILABILITY_STYLE());
 			END_INTERACTION(t)
 		}
-
-		this->drawable->set_style(SELECTED_STYLE());
+		
+		last_selected_style = last_selected_node->drawable->get_style();
+		last_selected_node->drawable->set_style(SELECTED_STYLE());
+		//this->drawable->set_style(SELECTED_STYLE());
 	};
 }
 
@@ -143,6 +161,106 @@ Game::Node::~Node()
 	delete[] animations;
 }
 
+void Game::Node::select_up()
+{
+	auto post_callback = last_selected_node->key_select();
+
+	if (last_selected_node->j > 0)
+	{
+		last_selected_node = table[last_selected_node->i][last_selected_node->j - 1];
+		if (!last_selected_node->is_active() && last_selected_node->j > 0)
+			last_selected_node = table[last_selected_node->i][last_selected_node->j - 1];
+		else if(!last_selected_node->is_active())
+			last_selected_node = table[last_selected_node->i][side_length - 1];
+	}
+	else
+	{
+		last_selected_node = table[last_selected_node->i][side_length - 1];
+		if (!last_selected_node->is_active())
+			last_selected_node = table[last_selected_node->i][last_selected_node->j - 1];
+	}
+
+	post_callback();
+}
+
+void Game::Node::select_down()
+{
+	auto post_callback = last_selected_node->key_select();
+
+	if (last_selected_node->j < side_length - 1)
+	{
+		last_selected_node = table[last_selected_node->i][last_selected_node->j + 1];
+		if (!last_selected_node->is_active() && last_selected_node->j < side_length - 1)
+			last_selected_node = table[last_selected_node->i][last_selected_node->j + 1];
+		else if (!last_selected_node->is_active())
+			last_selected_node = table[last_selected_node->i][0];
+	}
+	else
+	{
+		last_selected_node = table[last_selected_node->i][0];
+		if (!last_selected_node->is_active())
+			last_selected_node = table[last_selected_node->i][last_selected_node->j + 1];
+	}
+
+	post_callback();
+}
+
+void Game::Node::select_left()
+{
+	auto post_callback = last_selected_node->key_select();
+
+	if (last_selected_node->i > 0)
+	{
+		last_selected_node = table[last_selected_node->i - 1][last_selected_node->j];
+		if (!last_selected_node->is_active() && last_selected_node->i > 0)
+			last_selected_node = table[last_selected_node->i - 1][last_selected_node->j];
+		else if (!last_selected_node->is_active())
+			last_selected_node = table[side_length - 1][last_selected_node->j];
+	}
+	else
+	{
+		last_selected_node = table[side_length - 1][last_selected_node->j];
+		if (!last_selected_node->is_active())
+			last_selected_node = table[last_selected_node->i - 1][last_selected_node->j];
+	}
+
+	post_callback();
+}
+
+void Game::Node::select_right()
+{
+	auto post_callback = last_selected_node->key_select();
+
+	if (last_selected_node->i < side_length - 1)
+	{
+		last_selected_node = table[last_selected_node->i + 1][last_selected_node->j];
+		if (!last_selected_node->is_active() && last_selected_node->i < side_length - 1)
+			last_selected_node = table[last_selected_node->i + 1][last_selected_node->j];
+		else if (!last_selected_node->is_active())
+			last_selected_node = table[0][last_selected_node->j];
+	}
+	else
+	{
+		last_selected_node = table[0][last_selected_node->j];
+		if (!last_selected_node->is_active())
+			last_selected_node = table[last_selected_node->i + 1][last_selected_node->j];
+	}
+
+	post_callback();
+}
+
+std::function<void()> Game::Node::key_select()
+{
+	last_selected_node->drawable->set_style(last_selected_style);
+	last_selected_node->selected = false;
+
+	return []() {
+		last_selected_node->selected = true;
+		last_selected_style = last_selected_node->drawable->get_style();
+		last_selected_node->drawable->set_style(SELECTED_STYLE());
+	};
+}
+
 void Game::Node::try_move()
 {
 	BEGIN_INTERACTION(this)
@@ -161,13 +279,11 @@ void Game::Node::try_move()
 
 	if (is_adjacent)
 		prev_node = swap_with_empty();
-
-	clicekd = true;
 	END_INTERACTION(this)
 
 	prev_node->drawable->play_animation(*animations[prev_node->i - i + 1][prev_node->j - j + 1]);
-	clicekd = false;
 	prev_node->drawable->set_position(prev_node->position);
+	last_selected_node = prev_node;
 }
 
 void Game::Drawable::play_animation(const Animation & animation)
@@ -235,6 +351,9 @@ void Game::Node::initialize_nodes(std::list<Clickable*>* UI)
 	empty_node = table[side_length - 1][side_length - 1];
 	empty_node->active = false;
 	empty_node->drawable->set_visible(false);
+
+	last_selected_node = table[0][0];
+	last_selected_style = DEFAULT_STYLE();
 
 	//Animations
 	float shift1 = offset / 3.f;
@@ -427,6 +546,7 @@ void Game::initialize_game(size_t sl)
 
 	mouse_move_events = new EventQueue();
 	mouse_click_events = new EventQueue();
+	key_events = new EventQueue();
 	empty_adjacent = new AdjacentSet();
 	buttons = new std::list<Button*>();
 	float padding = (std::max(window_height, window_width) - std::min(window_height, window_width)) / 2;
@@ -460,6 +580,7 @@ bool Game::start_game()
 {
 	std::thread draw_thread(draw_process);
 	std::thread click_thread(click_process);
+	std::thread keyboard_thread(keyboard_process);
 	while (window->isOpen())
 	{
 		sf::Event event;
@@ -471,6 +592,8 @@ bool Game::start_game()
 				mouse_move_events->push(event);
 			else if (event.type == sf::Event::MouseButtonPressed)
 				mouse_click_events->push(event);
+			else if (event.type == sf::Event::KeyPressed)
+				key_events->push(event);
 		}
 
 		window->clear();
@@ -481,8 +604,9 @@ bool Game::start_game()
 		window->display();
 	}
 	restart_threads();
-	draw_thread.join(); // ?
-	click_thread.join(); // ?
+	keyboard_thread.join();
+	draw_thread.join();
+	click_thread.join();
 	return true;
 }
 
@@ -582,6 +706,41 @@ void Game::click_process()
 	}
 }
 
+void Game::keyboard_process()
+{
+	while (window->isOpen())
+	{
+		const sf::Event& e = key_events->pop();
+
+		if (last_selected_node->is_active() && (sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up)
+			|| sf::Keyboard::isKeyPressed(sf::Keyboard::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::Left)))
+		{
+			mouse_click_events->disable();
+			mouse_move_events->disable();
+			key_events->disable();
+
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+				Node::select_up();
+			else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+				Node::select_down();
+			else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+				Node::select_left();
+			else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+				Node::select_right();
+			else
+				move(last_selected_node->i, last_selected_node->j);
+
+			mouse_move_events->enable();
+			sf::Event e;
+			e.mouseMove.x = -1.f;
+			e.mouseMove.y = -1.f;
+			mouse_move_events->push(e);
+			mouse_click_events->enable();
+			key_events->enable();
+		}
+	}
+}
+
 void Game::Button::initialize_buttons(std::list<Clickable*>* UI)
 {
 	float table_side_size = std::min(window_height, window_width);
@@ -651,6 +810,7 @@ void Game::restart_threads()
 	e.mouseButton.x = -1.f;
 	e.mouseButton.y = -1.f;
 	mouse_click_events->push(e);
+	key_events->push(e);
 }
 
 void Game::reset()
@@ -666,6 +826,7 @@ void Game::clear()
 	delete menu_UI;
 	delete mouse_move_events;
 	delete mouse_click_events;
+	delete key_events;
 	delete empty_adjacent;
 	delete last_score;
 }
@@ -906,7 +1067,7 @@ void Game::Clickable::select()
 			return;
 		}
 
-		if (!contains(e.mouseMove.x, e.mouseMove.y))
+		if (!contains(e.mouseMove.x, e.mouseMove.y) || !selected)
 		{
 			END_INTERACTION(this)
 			break;
@@ -943,11 +1104,13 @@ std::function<void()> Game::Button::SELECT_ADDITION()
 {
 	Drawable::Style s = drawable->get_style();
 	Drawable* d = drawable;
-
+	selected = true;
+	
 	drawable->set_style(SELECTED_STYLE());
 
-	return [d, s]()
+	return [this, d, s]()
 	{
+		this->selected = false;
 		d->set_style(s);
 	};
 }
