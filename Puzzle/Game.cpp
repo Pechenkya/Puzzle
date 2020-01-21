@@ -138,6 +138,9 @@ new Drawable(sf::Text(sf::String(std::to_string(_j * side_length + _i + size_t{ 
 Game::Node::~Node()
 {
 	Clickable::~Clickable();
+	for (auto t : animations)
+		delete[] t;
+	delete[] animations;
 }
 
 void Game::Node::try_move()
@@ -164,7 +167,7 @@ void Game::Node::try_move()
 
 	prev_node->drawable->play_animation(*animations[prev_node->i - i + 1][prev_node->j - j + 1]);
 	clicekd = false;
-	drawable->set_position(position);
+	prev_node->drawable->set_position(prev_node->position);
 }
 
 void Game::Drawable::play_animation(const Animation & animation)
@@ -304,11 +307,8 @@ Game::Drawable::Drawable(const sf::Text & caption, const sf::Vector2f & _size, c
 
 Game::Drawable::~Drawable()
 {
-	if (rectangle)
-		delete rectangle;
-
-	if (text)
-		delete text;
+	delete rectangle;
+	delete text;
 }
 
 Game::Drawable::Style Game::Drawable::get_style()
@@ -480,6 +480,7 @@ bool Game::start_game()
 
 		window->display();
 	}
+	restart_threads();
 	draw_thread.join(); // ?
 	click_thread.join(); // ?
 	return true;
@@ -660,21 +661,14 @@ void Game::reset()
 
 void Game::clear()
 {
-	//TODO
-
-	/*if(window->isOpen())
-		window->close();
-	restart_threads();
-	delete pos_tree;
+	delete window;
+	delete game_UI;
+	delete menu_UI;
 	delete mouse_move_events;
 	delete mouse_click_events;
 	delete empty_adjacent;
-
-	for (auto t : *UI)
-		delete t;
-
-	delete UI;*/
-} //TODO
+	delete last_score;
+}
 
 int** Game::represent_to_int()
 {
@@ -991,6 +985,8 @@ Game::UserInterface::UserInterface(std::list <Clickable*>* _UI)
 
 Game::UserInterface::~UserInterface()
 {
+	for (auto t : *UI)
+		delete t;
 	delete UI;
 	delete pos_tree;
 }
@@ -1025,7 +1021,12 @@ Game::Lable::Lable()
 	text->setFillColor(sf::Color::White);
 }
 
-Game::Lable::Lable(const sf::Vector2f & pos, const std::string & caption = " ")
+Game::Lable::~Lable()
+{
+	delete text;
+}
+
+Game::Lable::Lable(const sf::Vector2f & pos, const std::string & caption)
 {
 	active = false;
 	text = new sf::Text(sf::String(caption), FONT);

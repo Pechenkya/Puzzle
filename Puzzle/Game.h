@@ -274,6 +274,7 @@ class Game
 		sf::Text* text;
 
 		Lable();
+		~Lable();
 		Lable(const sf::Vector2f& pos, const std::string& caption);
 		void set_caption(const std::string& caption);
 		void draw(sf::RenderWindow& window) const;
@@ -286,7 +287,7 @@ class Game
 public:
 	static void initialize_game(size_t sl = 4);
 	static bool start_game();
-	static void clear(); //TODO
+	static void clear();
 	
 	static void solve_game();
 
@@ -302,7 +303,6 @@ private:
 
 	static UserInterface* menu_UI;
 	//
-
 
 	//Base game propeties
 	static const float window_width;
