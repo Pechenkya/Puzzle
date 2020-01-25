@@ -101,7 +101,6 @@ class Game
 
 		const std::function<void(Clickable*)> ON_CLICK;
 		bool active;
-		bool selected;
 	public:
 		Clickable(const sf::Vector2f& _size, const sf::Vector2f& pos, const std::function<void(Clickable*)> f, Drawable* d = nullptr);
 		~Clickable();
@@ -164,11 +163,6 @@ class Game
 		Node(size_t _i, size_t _j, float node_size, const sf::Vector2f& pos);
 		~Node();
 
-		static void select_up();
-		static void select_down();
-		static void select_left();
-		static void select_right();
-		std::function<void()> key_select();
 
 		static void initialize_nodes(std::list<Clickable*>* UI);
 		static void reset_nodes();
@@ -328,7 +322,6 @@ private:
 	static std::mutex window_mutex;
 	static EventQueue* mouse_move_events;
 	static EventQueue* mouse_click_events;
-	static EventQueue* key_events;
 	static AdjacentSet* empty_adjacent;
 
 	static void draw_process(); //separate thread
@@ -338,13 +331,10 @@ private:
 	static void update_empty_adj();
 	static Game::AdjacentSet& get_adjacent();
 	static Node* empty_node;
-	static Node* last_selected_node;
-	static Drawable::Style last_selected_style;
 	//
 
 	//Puzzle movement
 	static void click_process(); //separate thread
-	static void keyboard_process();
 	//
 
 	//Game UI
