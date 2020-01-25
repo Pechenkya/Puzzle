@@ -712,20 +712,20 @@ void Game::keyboard_process()
 	{
 		const sf::Event& e = key_events->pop();
 
-		if (last_selected_node->is_active() && (e.key.code == sf::Keyboard::Enter || e.key.code == sf::Keyboard::Up
-			|| e.key.code == sf::Keyboard::Down || e.key.code == sf::Keyboard::Right || e.key.code == sf::Keyboard::Left))
+		if (last_selected_node->is_active() && (sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up)
+			|| sf::Keyboard::isKeyPressed(sf::Keyboard::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::Left)))
 		{
 			mouse_click_events->disable();
 			mouse_move_events->disable();
 			key_events->disable();
 
-			if (e.key.code == sf::Keyboard::Up)
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
 				Node::select_up();
-			else if (e.key.code == sf::Keyboard::Down)
+			else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 				Node::select_down();
-			else if (e.key.code == sf::Keyboard::Left)
+			else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
 				Node::select_left();
-			else if (e.key.code == sf::Keyboard::Right)
+			else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
 				Node::select_right();
 			else
 				move(last_selected_node->i, last_selected_node->j);
