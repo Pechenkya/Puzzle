@@ -70,7 +70,7 @@ class Game
 			sf::Color fill_color;
 		};
 
-		Style get_style();
+		Style get_style() const;
 		void set_style(const Style& s);
 		//
 
@@ -105,6 +105,8 @@ class Game
 		Clickable(const sf::Vector2f& _size, const sf::Vector2f& pos, const std::function<void(Clickable*)> f, Drawable* d = nullptr);
 		~Clickable();
 
+		Drawable::Style get_style() const;
+		void set_style(const Drawable::Style& s);
 
 		const sf::Vector2f size;
 		const sf::Vector2f position;
@@ -244,21 +246,35 @@ class Game
 		std::array<Node*, 4> arr;
 	};
 
-	struct PositionTree
+	class UserInterface
 	{
-		Clickable* match(float x, float y) const;
-		PositionTree(const std::list<Clickable*>* UI);
-	private:
-		std::vector<std::pair<float, std::vector<const Clickable*>>> tree;
-		int get_index_x(float pos, int a, int b) const;
-		Clickable* get_index_y(float pos, int a, int b, const std::vector<const Clickable*>& x_vec, float x_pos) const;
+		struct PositionTree
+		{
+			Clickable* match(float x, float y) const;
+			PositionTree(std::list<Clickable*>* UI);
 
-	};
+			std::vector<std::pair<float, std::vector<const Clickable*>>> vertical_set;
+			std::vector<std::pair<float, std::vector<const Clickable*>>> horizontal_set;
 
-	struct UserInterface
-	{
-		std::list <Clickable*>* UI;
-		PositionTree* pos_tree;
+			const std::vector<const Clickable*>* get_set(float pos, const std::vector<std::pair<float, std::vector<const Clickable*>>>& set) const;
+
+			const Clickable* intersection(std::vector<const Clickable*>& v, std::vector<const Clickable*>& h) const;
+		};
+
+	public:
+		static void draw_process(); //separate thread
+		static void click_process(); //separate thread
+		static void keyboard_process(); //separate thread
+
+
+
+		sf::Event select_up();
+		void select_down();
+		void select_left();
+		void select_right();
+
+		Clickable* last_selected_node;
+		Drawable::Style last_selected_style;
 
 		UserInterface(std::list <Clickable*>* _UI);
 		~UserInterface();
@@ -266,6 +282,20 @@ class Game
 		void deactivate();
 		void activate();
 		void draw(sf::RenderWindow& window) const;
+
+	private:
+		int h_i, v_i;
+	
+		std::vector<const Clickable*>& cyclic_index_clamper(int index, std::vector<std::pair<float, std::vector<const Clickable*>>>& container)
+		{
+			if (index < 0)
+				return container.at(container.size() - 1 + index % container.size()).second;
+			else
+				return container.at(index % container.size()).second;
+		}
+
+		std::list <Clickable*>* UI;
+		PositionTree pos_tree;
 	};
 
 	struct Lable
@@ -322,19 +352,14 @@ private:
 	static std::mutex window_mutex;
 	static EventQueue* mouse_move_events;
 	static EventQueue* mouse_click_events;
+	static EventQueue* key_events;
 	static AdjacentSet* empty_adjacent;
-
-	static void draw_process(); //separate thread
 	//
 
 	//Node
 	static void update_empty_adj();
 	static Game::AdjacentSet& get_adjacent();
 	static Node* empty_node;
-	//
-
-	//Puzzle movement
-	static void click_process(); //separate thread
 	//
 
 	//Game UI
@@ -360,3 +385,4 @@ T* Game::create_clickable(std::list<Clickable*>* UI_list, ArgsT&& ...args)
 	UI_list->push_back(new_obj);
 	return static_cast<T*>(new_obj);
 }
+

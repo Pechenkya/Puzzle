@@ -44,6 +44,7 @@ const float animation_time = 0.4f;
 // Game static member
 Game::EventQueue* Game::mouse_move_events = nullptr;
 Game::EventQueue* Game::mouse_click_events = nullptr;
+Game::EventQueue* Game::key_events = nullptr;
 Game::AdjacentSet* Game::empty_adjacent = nullptr;
 
 const float Game::Drawable::Animation::one_step_t = 0.008f;
@@ -71,7 +72,6 @@ Game::UserInterface* Game::active_UI = nullptr;
 std::list<Game::Button*>* Game::buttons = nullptr;
 Game::UserInterface* Game::menu_UI = nullptr;
 //
-
 
 bool Game::clickable_comp_x(const Clickable* a, const Clickable* b)
 {
@@ -311,7 +311,7 @@ Game::Drawable::~Drawable()
 	delete text;
 }
 
-Game::Drawable::Style Game::Drawable::get_style()
+Game::Drawable::Style Game::Drawable::get_style() const
 {
 	return Style{ rectangle->getOutlineThickness(), rectangle->getOutlineColor(), rectangle->getFillColor() };
 }
@@ -427,6 +427,7 @@ void Game::initialize_game(size_t sl)
 
 	mouse_move_events = new EventQueue();
 	mouse_click_events = new EventQueue();
+	key_events = new EventQueue();
 	empty_adjacent = new AdjacentSet();
 	buttons = new std::list<Button*>();
 	float padding = (std::max(window_height, window_width) - std::min(window_height, window_width)) / 2;
@@ -444,13 +445,13 @@ void Game::initialize_game(size_t sl)
 	active_UI = menu_UI;
 }
 
-void Game::draw_process()
+void Game::UserInterface::draw_process()
 {		
 	while (window->isOpen())
 	{
 		const sf::Event& e = mouse_move_events->pop();
 
-		Clickable* node = active_UI->pos_tree->match(e.mouseMove.x, e.mouseMove.y);
+		Clickable* node = active_UI->pos_tree.match(e.mouseMove.x, e.mouseMove.y);
 		if (node && node->is_active())
 			node->select();
 	}
@@ -458,8 +459,10 @@ void Game::draw_process()
 
 bool Game::start_game()
 {
-	std::thread draw_thread(draw_process);
-	std::thread click_thread(click_process);
+	std::thread draw_thread(UserInterface::draw_process);
+	std::thread click_thread(UserInterface::click_process);
+	std::thread keyboard_thread(UserInterface::keyboard_process);
+
 	while (window->isOpen())
 	{
 		sf::Event event;
@@ -471,6 +474,8 @@ bool Game::start_game()
 				mouse_move_events->push(event);
 			else if (event.type == sf::Event::MouseButtonPressed)
 				mouse_click_events->push(event);
+			else if (event.type == sf::Event::KeyPressed)
+				key_events->push(event);
 		}
 
 		window->clear();
@@ -481,8 +486,9 @@ bool Game::start_game()
 		window->display();
 	}
 	restart_threads();
-	draw_thread.join(); // ?
-	click_thread.join(); // ?
+	keyboard_thread.join();
+	draw_thread.join();
+	click_thread.join();
 	return true;
 }
 
@@ -557,12 +563,12 @@ Game::AdjacentSet& Game::get_adjacent()
 	return *empty_adjacent;
 }
 
-void Game::click_process()
+void Game::UserInterface::click_process()
 {
 	while (window->isOpen())
 	{
 		const sf::Event& e = mouse_click_events->pop();
-		Clickable* node = active_UI->pos_tree->match(e.mouseButton.x, e.mouseButton.y);
+		Clickable* node = active_UI->pos_tree.match(e.mouseButton.x, e.mouseButton.y);
 
 		if (node)
 		{
@@ -580,6 +586,79 @@ void Game::click_process()
 			mouse_click_events->enable();
 		}
 	}
+}
+
+void Game::UserInterface::keyboard_process()
+{
+	while (window->isOpen())
+	{
+		const sf::Event& e = key_events->pop();
+
+		if (e.key.code == sf::Keyboard::Enter || e.key.code == sf::Keyboard::Up
+			|| e.key.code == sf::Keyboard::Down || e.key.code == sf::Keyboard::Right || e.key.code == sf::Keyboard::Left)
+		{
+			mouse_click_events->disable();
+			mouse_move_events->disable();
+			key_events->disable();
+			sf::Event e2;
+			if (e.key.code == sf::Keyboard::Up)
+			{
+				e2 = active_UI->select_up();
+			}
+			else if (e.key.code == sf::Keyboard::Down)
+			{}
+			else if (e.key.code == sf::Keyboard::Left)
+			{}
+			else if (e.key.code == sf::Keyboard::Right)
+			{}
+			else
+				active_UI->last_selected_node->click();
+
+			mouse_move_events->enable();
+			mouse_move_events->push(e2);
+			mouse_click_events->enable();
+			key_events->enable();
+		}
+	}
+}
+
+sf::Event Game::UserInterface::select_up()
+{
+	const Clickable* selected = nullptr;
+	++h_i;
+	for(int i = 1; !selected; ++i, ++h_i)
+	{
+		for (int j = -i; j <= i; j++)
+		{
+			selected = pos_tree.intersection(cyclic_index_clamper(j, pos_tree.vertical_set),
+				cyclic_index_clamper(i, pos_tree.horizontal_set));
+
+			if (selected)
+				break;
+		}
+	}
+
+	/*last_selected_node->set_style(last_selected_style);*/
+	last_selected_style = selected->get_style();
+	last_selected_node = const_cast<Clickable*>(selected);
+
+	sf::Event e;
+	e.mouseMove.x = selected->position.x;
+	e.mouseMove.y = selected->position.y;
+	return e;
+}
+
+void Game::UserInterface::select_down()
+{
+
+}
+
+void Game::UserInterface::select_left()
+{
+}
+
+void Game::UserInterface::select_right()
+{
 }
 
 void Game::Button::initialize_buttons(std::list<Clickable*>* UI)
@@ -651,6 +730,7 @@ void Game::restart_threads()
 	e.mouseButton.x = -1.f;
 	e.mouseButton.y = -1.f;
 	mouse_click_events->push(e);
+	key_events->push(e);
 }
 
 void Game::reset()
@@ -668,6 +748,7 @@ void Game::clear()
 	delete mouse_click_events;
 	delete empty_adjacent;
 	delete last_score;
+	delete key_events;
 }
 
 int** Game::represent_to_int()
@@ -739,17 +820,28 @@ void Game::EventQueue::enable()
 	END_INTERACTION(this)
 }
 
-Game::Clickable* Game::PositionTree::match(float x, float y) const 
+Game::Clickable* Game::UserInterface::PositionTree::match(float x, float y) const
 {
-	int x_index = get_index_x(x, 0, tree.size() - 1);
-	if (x_index == -1)
+	std::vector<const Clickable*>* h_set = const_cast<std::vector<const Clickable*>*>(get_set(y, horizontal_set));
+	if (!h_set)
 		return nullptr;
 
-	return get_index_y(y, 0, tree.at(x_index).second.size() - 1, tree.at(x_index).second, x);
+	std::vector<const Clickable*>* v_set = const_cast<std::vector<const Clickable*>*>(get_set(x, vertical_set));
+	if (!v_set)
+		return nullptr;
+
+	const Clickable* node = intersection(*v_set, *h_set);
+
+	if (node && node->contains(x, y))
+		return const_cast<Clickable*>(node);
+
+	return nullptr;
 }
 
-Game::PositionTree::PositionTree(const std::list<Clickable*>* UI)
+Game::UserInterface::PositionTree::PositionTree(std::list<Clickable*>* UI)
 {
+	UI->sort(&Game::clickable_comp_x);
+
 	const Clickable* temp_clickable = nullptr;
 
 	float t = -1.f;
@@ -761,8 +853,8 @@ Game::PositionTree::PositionTree(const std::list<Clickable*>* UI)
 		if (temp_clickable->position.x == t)
 			continue;
 
-		tree.emplace_back();
-		tree.back().first = temp_clickable->position.x;
+		vertical_set.emplace_back();
+		vertical_set.back().first = temp_clickable->position.x;
 		t = temp_clickable->position.x;
 
 		for (const Clickable* t : *UI)
@@ -771,58 +863,105 @@ Game::PositionTree::PositionTree(const std::list<Clickable*>* UI)
 				break;
 
 			if (t->position.x + t->size.x > temp_clickable->position.x)
-				tree.back().second.push_back(t);
+				vertical_set.back().second.push_back(t);
 		}
 
-		std::sort(tree.back().second.begin(), tree.back().second.end(), &Game::clickable_comp_y);
+		std::sort(vertical_set.back().second.begin(), vertical_set.back().second.end(), &Game::clickable_comp_y);
+	}
+
+	UI->sort(&Game::clickable_comp_y);
+	t = -1.f;
+
+	for (auto i = UI->cbegin(); i != UI->cend(); ++i)
+	{
+		temp_clickable = *i;
+
+		if (temp_clickable->position.y == t)
+			continue;
+
+		horizontal_set.emplace_back();
+		horizontal_set.back().first = temp_clickable->position.y;
+		t = temp_clickable->position.y;
+
+		for (const Clickable* t : *UI)
+		{
+			if (t->position.y > temp_clickable->position.y)
+				break;
+
+			if (t->position.y + t->size.y > temp_clickable->position.y)
+				horizontal_set.back().second.push_back(t);
+		}
+
+		std::sort(horizontal_set.back().second.begin(), horizontal_set.back().second.end(), &Game::clickable_comp_x);
 	}
 }
 
-int Game::PositionTree::get_index_x(float pos, int a, int b) const
+const Game::Clickable* Game::UserInterface::PositionTree::intersection(std::vector<const Clickable*>& v, std::vector<const Clickable*>& h) const
 {
-	if (a >= b)
+	const Clickable* intersection_obj = nullptr;
+
+	if (v.size() > h.size())
 	{
-		if (b < 0)
-			return -1;
-		else
-			return a;
+		std::sort(h.begin(), h.end(), &Game::clickable_comp_y);
+
+		for (int t = 0, i = 0, j = 0; t < v.size() + h.size() - 1 && i < v.size() && j < h.size(); ++t)
+		{
+			if (clickable_comp_y(v.at(i), h.at(j)))
+				++i;
+			else if (clickable_comp_y(h.at(j), v.at(i)))
+				++j;
+			else
+			{
+				intersection_obj = h.at(j);
+				break;
+			}
+		}
+
+		std::sort(h.begin(), h.end(), &Game::clickable_comp_x);
+	}
+	else
+	{
+		std::sort(v.begin(), v.end(), &Game::clickable_comp_x);
+
+		for (int t = 0, i = 0, j = 0; t < v.size() + h.size() - 1 && i < v.size() && j < h.size(); ++t)
+		{
+			if (clickable_comp_x(v.at(i), h.at(j)))
+				++i;
+			else if (clickable_comp_x(h.at(j), v.at(i)))
+				++j;
+			else
+			{
+				intersection_obj = h.at(j);
+				break;
+			}
+		}
+
+		std::sort(v.begin(), v.end(), &Game::clickable_comp_y);
 	}
 
-	int m = (a + b) / 2;
-
-	if (pos < tree[m].first)
-		return get_index_x(pos, a, m - 1);
-	else if (pos > tree[m + 1].first)
-		return get_index_x(pos, m + 1, b);
-	else
-		return m;
+	return intersection_obj;
 }
 
-Game::Clickable* Game::PositionTree::get_index_y(float pos, int a, int b, const std::vector<const Clickable*>& x_vec, float x_pos) const
+const std::vector<const Game::Clickable*>* Game::UserInterface::PositionTree::get_set(float pos, const std::vector<std::pair<float, std::vector<const Clickable*>>> & set) const 
 {
-	if (a >= b)
+	int a = 0, b = set.size() - 1;
+
+	while (a < b)
 	{
-		if (b < 0)
-			return nullptr;
-		else if (x_vec.at(a)->is_active() && x_vec.at(a)->contains(x_pos, pos))
-			return const_cast<Clickable*>(x_vec.at(a));
+		int m = (a + b) / 2;
+
+		if (pos < set.at(m).first)
+			b = m - 1;
+		else if (set.at(m + 1).first < pos)
+			a = m + 1;
 		else
-			return nullptr;
+			return &set.at(m).second;
 	}
 
-	int m = (a + b) / 2;
-
-	if (pos < x_vec[m]->position.y)
-		return get_index_y(pos, a, m - 1, x_vec, x_pos);
-	else if (pos > x_vec[m + 1]->position.y)
-		return get_index_y(pos, m + 1, b, x_vec, x_pos);
+	if (b < 0)
+		return nullptr;
 	else
-	{
-		if (x_vec.at(m)->is_active() && x_vec.at(m)->contains(x_pos, pos))
-			return const_cast<Clickable*>(x_vec.at(m));
-		else
-			return nullptr;
-	}
+		return &set.at(a).second;
 }
 
 Game::Drawable::Animation::Animation(std::string expr_x, std::string expr_y, float t1, float t2) : step_count{ static_cast<size_t>((t2 - t1) / one_step_t + 1) }
@@ -976,19 +1115,23 @@ Game::Clickable::~Clickable()
 	delete drawable;
 }
 
-Game::UserInterface::UserInterface(std::list <Clickable*>* _UI)
+Game::Drawable::Style Game::Clickable::get_style() const
 {
-	UI = _UI;
-	UI->sort(&Game::clickable_comp_x);
-	pos_tree = new PositionTree(UI);
+	return drawable->get_style();
 }
+
+void Game::Clickable::set_style(const Drawable::Style& s)
+{
+	drawable->set_style(s);
+}
+
+Game::UserInterface::UserInterface(std::list <Clickable*>* _UI) : h_i{ 0 }, v_i{ 0 }, UI{ _UI }, last_selected_node{ nullptr }, pos_tree{ _UI }{}
 
 Game::UserInterface::~UserInterface()
 {
 	for (auto t : *UI)
 		delete t;
 	delete UI;
-	delete pos_tree;
 }
 
 void Game::UserInterface::deactivate()
@@ -1010,6 +1153,7 @@ void Game::UserInterface::draw(sf::RenderWindow & window) const
 {
 	for (Clickable* t : *UI)
 		t->draw(window);
+
 }
 
 Game::Lable::Lable()
