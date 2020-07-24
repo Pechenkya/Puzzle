@@ -95,7 +95,6 @@ class Game
 
 		mutable std::mutex interaction_mutex;
 
-
 		virtual std::function<void()> SELECT_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
 		virtual std::function<void()> CLICK_ADDITION() = 0; // function itself executes before selection, returned function executes at selection end
 
@@ -111,6 +110,7 @@ class Game
 		const sf::Vector2f size;
 		const sf::Vector2f position;
 
+		size_t hash;
 
 		void select();
 		void click();
@@ -246,6 +246,17 @@ class Game
 		std::array<Node*, 4> arr;
 	};
 
+	struct HashClickableSet
+	{
+		const Clickable* get(const Clickable* obj);
+
+		HashClickableSet(size_t N);
+	private:
+		const Clickable** set;
+
+		size_t N;
+	};
+
 	class UserInterface
 	{
 		struct PositionTree
@@ -334,7 +345,7 @@ private:
 	static UserInterface* menu_UI;
 	//
 
-	//Base game propeties
+	//Base game properties
 	static const float window_width;
 	static const float window_height;
 	static size_t side_length;
@@ -382,6 +393,7 @@ template<typename T, typename ...ArgsT>
 T* Game::create_clickable(std::list<Clickable*>* UI_list, ArgsT&& ...args)
 {
 	Clickable* new_obj = new T(std::forward<ArgsT>(args)...);
+	new_obj->hash = UI_list->size();
 	UI_list->push_back(new_obj);
 	return static_cast<T*>(new_obj);
 }

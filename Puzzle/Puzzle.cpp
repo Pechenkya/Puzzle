@@ -6,7 +6,7 @@
 
 int main()
 {
-	Game::initialize_game(4);
+	Game::initialize_game(5);
 	Game::start_game();
 	Game::clear();
 	int i;

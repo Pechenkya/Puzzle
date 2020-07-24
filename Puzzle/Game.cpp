@@ -1189,3 +1189,21 @@ void Game::Lable::draw(sf::RenderWindow & window) const
 	if(active)
 		window.draw(*text);
 }
+
+const Game::Clickable * Game::HashClickableSet::get(const Clickable * obj)
+{
+	if (obj == set[obj->hash % N])
+		return set[obj->hash % N];
+
+	return nullptr;
+}
+
+Game::HashClickableSet::HashClickableSet(size_t n)
+{
+	N = n;
+	set = new const Clickable*[N];
+
+	for (size_t i = 0; i < N; i++)
+		set[i] = nullptr;
+}
+
